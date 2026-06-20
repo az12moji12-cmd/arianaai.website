@@ -23,7 +23,27 @@ interface AnalysisRequest {
   question: string;
   fileContents: FileContent[];
 }
+async function loadKnowledgeFiles(): Promise<string> {
+  const contents: string[] = [];
 
+  for (const filePath of KNOWLEDGE_FILES) {
+    try {
+      const text = await Deno.readTextFile(filePath);
+
+      contents.push(`
+========================
+منبع: ${filePath}
+========================
+
+${text}
+`);
+    } catch (error) {
+      console.error(`Knowledge file error: ${filePath}`, error);
+    }
+  }
+
+  return contents.join("\n\n");
+}
 const SYSTEM_PROMPT = `شما کارشناس ارشد حقوق قراردادها در نظام حقوقی جمهوری اسلامی ایران هستید.
 ابتدا سؤال و نیاز کاربر را شناسایی کنید و تحلیل خود را متناسب با درخواست کاربر متمرکز نمایید. سپس قرارداد را به طور کامل بررسی کرده و ماهیت حقوقی واقعی آن را تعیین کنید. صرفاً به عنوان قرارداد اکتفا نکنید و رژیم حقوقی حاکم بر آن را مشخص نمایید (مانند پیمانکاری، حمل‌ونقل، خرید و فروش، خدمات، اجاره، مشارکت، سرمایه‌گذاری، نمایندگی و سایر قراردادها).
 پس از تشخیص نوع قرارداد، فقط قوانین، مقررات، آیین‌نامه‌ها، آرای وحدت رویه، نظریات مشورتی و سایر منابع مرتبط با همان نوع قرارداد را از دانش پروژه بررسی کنید و از استناد به منابع نامرتبط خودداری نمایید.
