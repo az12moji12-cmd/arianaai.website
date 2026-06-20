@@ -1,5 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+const KNOWLEDGE_FILES = [
+  "./knowledge/ایین_دادرسی_تجاری_مدنی.txt",
+  "./knowledge/شرایط_پیمان_و_ایین_نامه_معاملات_دولتی.txt",
+  "./knowledge/قوانین_کاربردی_مدنی_و_تجارت.txt",
+];
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
