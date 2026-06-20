@@ -154,6 +154,65 @@ function buildFileContentBlocks(files: FileContent[]): Array<Record<string, unkn
 
   return blocks;
 }
+async function retrieveLegalSources(
+  apiKey: string,
+  question: string,
+  contractFiles: FileContent[],
+): Promise<string> {
+
+  const knowledgeBase = await loadKnowledgeFiles();
+
+  const contractText = contractFiles
+    .map(file => file.content)
+    .join("\n\n");
+
+  const response = await fetch(
+    "https://api.anthropic.com/v1/messages",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-1",
+        max_tokens: 12000,
+        system: RETRIEVAL_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `
+سوال کاربر:
+
+${question}
+
+==================
+متن قرارداد
+==================
+
+${contractText}
+
+==================
+منابع حقوقی
+==================
+
+${knowledgeBase}
+`,
+          },
+        ],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Legal retrieval failed");
+  }
+
+  const result = await response.json();
+
+  return result.content?.[0]?.text || "";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
