@@ -248,6 +248,17 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // استخراج مواد قانونی مرتبط توسط API اول
+
+const legalSources = await retrieveLegalSources(
+  apiKey,
+  question,
+  fileContents
+);
+
+console.log("Retrieved legal sources:");
+console.log(legalSources);
+  
 // بارگذاری منابع حقوقی پروژه
 const knowledgeFiles = await loadKnowledgeFiles();
 
