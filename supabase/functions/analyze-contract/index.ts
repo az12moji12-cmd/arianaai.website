@@ -23,6 +23,7 @@ interface AnalysisRequest {
   question: string;
   fileContents: FileContent[];
 }
+
 async function loadKnowledgeFiles(): Promise<string> {
   const contents: string[] = [];
 
