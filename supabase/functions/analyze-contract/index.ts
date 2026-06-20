@@ -248,7 +248,13 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+// بارگذاری منابع حقوقی پروژه
+const knowledgeFiles = await loadKnowledgeFiles();
 
+console.log(
+  "Knowledge loaded:",
+  Object.keys(knowledgeFiles)
+);
     const fileBlocks = buildFileContentBlocks(fileContents);
     const userText = USER_PROMPT_TEMPLATE.replace("{USER_QUESTION}", question);
 
