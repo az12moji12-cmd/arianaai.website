@@ -319,8 +319,8 @@ ${knowledgeBase}
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6", // مدل اول: سریع و کارآمد برای استخراج منابع
-      max_tokens: 12000,
+      model: "claude-opus-4-8", // مدل اول: سریع و کارآمد برای استخراج منابع
+      max_tokens: 16000,
       system: RETRIEVAL_SYSTEM_PROMPT,
       messages: [
         {
@@ -460,8 +460,8 @@ ${question}
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-6", // مدل دوم: قوی‌ترین مدل برای تحلیل جامع
-        max_tokens: 16000,
+        model: "claude-opus-4-8", // مدل دوم: قوی‌ترین مدل برای تحلیل جامع
+        max_tokens: 64000,
         stream: true,
         system: ANALYSIS_SYSTEM_PROMPT,
         messages: [
