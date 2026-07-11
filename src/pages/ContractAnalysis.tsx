@@ -22,6 +22,8 @@ interface Message {
   content: string;
   files?: Array<{ name: string; size: number }>;
   timestamp: string;
+  docxUrl?: string;
+  docxFilename?: string;
 }
 
 interface UploadedFile {
@@ -230,18 +232,16 @@ export default function ContractAnalysis() {
               }
               const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
               const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${parsed.filename || 'گزارش-آریانا'}.docx`;
-              a.click();
-              URL.revokeObjectURL(url);
-            } else if (parsed.text) {
-              accumulated += parsed.text;
+              const filename = parsed.filename || 'گزارش-آریانا';
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === assistantMessageId ? { ...m, content: accumulated } : m
+                  m.id === assistantMessageId
+                    ? { ...m, content: 'گزارش حقوقی آماده است.', docxUrl: url, docxFilename: filename }
+                    : m
                 )
               );
+            } else if (parsed.text) {
+              accumulated += parsed.text;
             }
           } catch (e) {
             if (e instanceof Error && e.message !== data) throw e;
@@ -252,7 +252,7 @@ export default function ContractAnalysis() {
       if (!accumulated) {
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantMessageId
+            m.id === assistantMessageId && !m.docxUrl
               ? { ...m, content: 'پاسخی دریافت نشد. لطفاً دوباره تلاش کنید.' }
               : m
           )
@@ -398,7 +398,27 @@ export default function ContractAnalysis() {
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : msg.docxUrl ? (
+                  <div className="flex items-center gap-4 py-1">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
+                        <FileText size={20} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-navy-900">{msg.docxFilename}.docx</p>
+                        <p className="text-xs text-navy-500">گزارش Word آماده دانلود</p>
+                      </div>
+                    </div>
+                    <a
+                      href={msg.docxUrl}
+                      download={`${msg.docxFilename}.docx`}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-navy-600 hover:bg-navy-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      <Download size={14} />
+                      دانلود
+                    </a>
+                  </div>
+                ) : msg.content ? (
                   <div>
                     <div className="prose prose-sm max-w-none">
                       <div
@@ -410,7 +430,6 @@ export default function ContractAnalysis() {
                         }}
                       />
                     </div>
-
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
                       <button
                         onClick={() => navigator.clipboard.writeText(msg.content)}
@@ -419,24 +438,9 @@ export default function ContractAnalysis() {
                       >
                         <Copy size={14} className="text-navy-400" />
                       </button>
-                      <button
-                        onClick={() => {
-                          const blob = new Blob([msg.content], { type: 'text/plain;charset=utf-8' });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `تحلیل-آریانا-${msg.timestamp.replace(/[/:]/g, '-')}.txt`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="دانلود متن"
-                      >
-                        <Download size={14} className="text-navy-400" />
-                      </button>
                     </div>
                   </div>
-                )}
+                ) : null}
                 <p className="text-xs opacity-60 mt-2">{msg.timestamp}</p>
               </div>
             </div>
