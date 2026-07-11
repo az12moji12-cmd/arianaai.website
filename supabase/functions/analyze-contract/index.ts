@@ -1,656 +1,1067 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createWordReport } from "./word.ts";
 import {
   Document,
   Packer,
   Paragraph,
+  TextRun,
   HeadingLevel,
   AlignmentType,
-  TextRun,
   Table,
   TableRow,
   TableCell,
-  WidthType
-} from "npm:docx";
+  WidthType,
+  Header,
+  Footer,
+  PageNumber,
+  BorderStyle,
+  ShadingType,
+  LevelFormat,
+  SectionType,
+  VerticalAlign,
+  PageBreak,
+  TableOfContents,
+  NumberFormat,
+  convertInchesToTwip,
+} from "npm:docx@9";
+import { DOMParser } from "jsr:@b-fuze/deno-dom";
 
-// ═══════════════════════════════════════════════════════
-// فایل‌های پایگاه دانش حقوقی
-// ═══════════════════════════════════════════════════════
-const KNOWLEDGE_FILES = [
-  "./knowledge/ایین_دادرسی_تجاری_مدنی.txt",
-  "./knowledge/شرایط_پیمان_و_ایین_نامه_معاملات_دولتی.txt",
-  "./knowledge/قوانین_کاربردی_مدنی_و_تجارت.txt",
-];
+// ═══════════════════════════════════════════════════════════════════════
+// معماری کلی این فایل
+// ═══════════════════════════════════════════════════════════════════════
+// ۱. یک فایل (معمولاً PDF) از کاربر دریافت می‌شود (base64).
+// ۲. فایل به همراه دستورالعمل تحلیلی «تیدا» + یک قرارداد خروجی فنی (JSON)
+//    مستقیماً برای مدل claude-opus-4-8 ارسال می‌شود.
+// ۳. مدل فقط یک شیء JSON برمی‌گرداند که شامل متادیتای گزارش + بدنهٔ گزارش
+//    به صورت HTML ساختاریافته (فقط تگ‌های ساده) است.
+// ۴. آن HTML با یک پارسر DOM واقعی (deno-dom) خوانده می‌شود و به عناصر
+//    کتابخانه docx (Paragraph / Table / Heading و ...) تبدیل می‌گردد.
+// ۵. یک فایل Word رسمی با صفحه جلد، فهرست مطالب (TOC واقعی Word)،
+//    سربرگ، پاورقی با شماره صفحه، جدول‌بندی و فونت‌های فارسی B Titr / B Lotus
+//    ساخته و مستقیماً (به صورت باینری) به کاربر بازگردانده می‌شود.
+//
+// نکته مهم دربارهٔ فونت‌ها: کتابخانه docx فونت را «ارجاع» می‌دهد نه «جاسازی».
+// یعنی فایل خروجی از فونت‌های B Titr و B Lotus استفاده می‌کند، اما این دو
+// فونت باید روی سیستمی که فایل باز می‌شود نصب باشند تا دقیقاً همان‌طور که
+// انتظار می‌رود نمایش داده شوند؛ در غیر این صورت Word با فونت جایگزین
+// نمایش می‌دهد (محتوا و ساختار سالم می‌ماند).
+//
+// نکته مهم دربارهٔ فهرست مطالب: فهرست مطالب به صورت یک «فیلد واقعی Word»
+// ساخته می‌شود (نه یک لیست ایستا). Word معمولاً هنگام باز شدن فایل آن را
+// خودش محاسبه می‌کند (به دلیل فعال بودن گزینه updateFields)؛ اگر در برخی
+// نسخه‌های Word/LibreOffice به‌صورت خودکار محاسبه نشد، کافی است کاربر
+// Ctrl+A و سپس F9 را بزند — همین راهنما در بالای فهرست مطالب هم نوشته شده.
+// ═══════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// تنظیمات و ثابت‌ها
+// ═══════════════════════════════════════════════════════════════════════
+const COMPANY_NAME = "شرکت تونل سد آریانا";
+const COMPANY_SUBTITLE = "اداره حقوقی";
+const MODEL_NAME = "claude-opus-4-8";
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+
+// حداکثر توکن خروجی مدل. اگر گزارش‌های شما طولانی‌تر از حد معمول هستند و با
+// خطای "max_tokens" مواجه می‌شوید، این عدد را افزایش دهید؛ اما پیش از آن
+// در مستندات رسمی docs.claude.com سقف مجاز خروجی برای مدل claude-opus-4-8
+// را بررسی کنید (این سقف بسته به نسخه مدل متفاوت است و ممکن است نیاز به
+// هدر anthropic-beta جداگانه داشته باشد). همچنین توجه کنید Edge Function ها
+// سقف زمانی اجرا دارند؛ اگر با تایم‌اوت پلتفرم Supabase مواجه شدید، این
+// عدد را کاهش دهید یا معماری را به حالت صف/استریم تغییر دهید.
+const MAX_OUTPUT_TOKENS = 16000;
+
+// حداکثر زمان انتظار برای پاسخ Claude (میلی‌ثانیه). اگر Edge Function شما
+// سقف زمانی کوتاه‌تری دارد، این عدد را متناسب با آن کاهش دهید تا به‌جای
+// قطع ناگهانی و بی‌پیام توسط پلتفرم، یک خطای فارسی روشن به کاربر نمایش
+// داده شود.
+const CLAUDE_REQUEST_TIMEOUT_MS = 280_000;
+
+// حداکثر حجم مجاز کل فایل‌های ارسالی (برای جلوگیری از خطای غیرضروری در
+// سمت Anthropic API و جلوگیری از تایم‌اوت). عدد بر حسب مگابایت (تخمینی
+// بر اساس طول رشته base64) است.
+const MAX_TOTAL_FILE_SIZE_MB = 28;
+
+const HEADING_FONT = "B Titr";
+const BODY_FONT = "B Lotus";
+const BODY_SIZE = 24; // 12pt (واحد کتابخانه docx نصف‌پوینت است)
+
+const DEFAULT_CONFIDENTIALITY =
+  "این گزارش صرفاً جهت استفاده داخلی واحد حقوقی شرکت تونل سد آریانا تهیه شده است و افشا یا انتشار آن به اشخاص ثالث بدون مجوز کتبی ممنوع می‌باشد.";
+
+// ═══════════════════════════════════════════════════════════════════════
 // هدرهای CORS
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  // بدون این هدر، جاوااسکریپت سمت فرانت‌اند (fetch) اجازه خواندن
+  // Content-Disposition را ندارد و نمی‌تواند نام فایل واقعی را استخراج کند.
+  "Access-Control-Expose-Headers": "Content-Disposition",
 };
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 // تایپ‌ها
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 interface FileContent {
   name: string;
-  content: string;
+  content: string; // داده base64 یا متن خام
   encoding: "base64" | "text";
-  media_type: string;
+  media_type: string; // مثلاً application/pdf یا text/plain
 }
 
 interface AnalysisRequest {
-  question: string;
+  question?: string;
   fileContents: FileContent[];
 }
 
-// ═══════════════════════════════════════════════════════
-// سیستم پرامپت مدل اول — استخراج منابع حقوقی
-// ═══════════════════════════════════════════════════════
-const RETRIEVAL_SYSTEM_PROMPT = `
-شما موتور استخراج منابع حقوقی هستید.
+interface ReportData {
+  reportTitle: string;
+  documentType: string;
+  subject: string;
+  legalRegime: string;
+  legalField: string;
+  confidentiality: string;
+  html: string;
+}
 
-وظیفه شما تحلیل یا پاسخگویی نیست.
+// ═══════════════════════════════════════════════════════════════════════
+// دستورالعمل تحلیلی «تیدا» (سیستم پرامپت اصلی مدل)
+// ═══════════════════════════════════════════════════════════════════════
+const TIDA_SYSTEM_PROMPT = `
+شما «تیدا» (Tunnel Intelligent Document Analyzer)، دستیار هوشمند تحلیل حقوقی دپارتمان حقوقی شرکت تونل سد آریانا هستید.
 
-ورودی شما شامل:
+وظیفه اصلی شما ارائه تحلیل حقوقی عمیق، دقیق، کاربردی و حرفه‌ای از اسناد بارگذاری‌شده است. هدف شما پاسخ به سؤال کاربر یا ارائه اطلاعات عمومی نیست، بلکه باید با نگاه یک مدیر حقوقی ارشد، وضعیت حقوقی موضوع را ارزیابی کرده و به تصمیم‌گیری آگاهانه و کاهش ریسک‌های شرکت کمک کنید.
 
-1- سوال کاربر
-2- متن قرارداد
-3- منابع حقوقی پروژه
+در تمام تحلیل‌ها، همواره منافع مشروع شرکت تونل سد آریانا را به عنوان اصل راهبردی در نظر بگیرید و تحلیل را از منظر حفظ حقوق، منافع و کاهش ریسک‌های شرکت انجام دهید.
 
-است.
+پیش از شروع تحلیل، ابتدا ماهیت سند را تشخیص دهید. مشخص کنید سند از چه نوعی است (مانند قرارداد، رأی دادگاه، دادخواست، لایحه، بیمه‌نامه، ضمانت‌نامه، مناقصه، مکاتبه رسمی، گزارش کارشناسی، سند مالی، سند فنی یا هر سند دیگر)، به چه زبانی تنظیم شده، تابع چه نظام حقوقی و چه حوزه قضایی است و هدف اصلی سند چیست.
 
-وظیفه:
+در صورتی که سند متعلق به نظام حقوقی ایران باشد، تحلیل را مطابق قوانین جمهوری اسلامی ایران، اصول حقوقی، رویه قضایی و مقررات مرتبط انجام دهید. اگر سند متعلق به کشور دیگری باشد، تحلیل را بر اساس قوانین همان کشور و در صورت لزوم قواعد و اصول پذیرفته‌شده حقوق بین‌الملل انجام دهید.
 
-فقط مواد قانونی، مقررات، آیین نامه ها، شروط عمومی پیمان و مستندات حقوقی مرتبط را پیدا کن.
+اگر سند ماهیت حقوقی نداشته باشد، آن را از مناسب‌ترین منظر حقوقی، قراردادی، مالی، تجاری یا مدیریتی که برای شرکت مفیدتر است تحلیل کنید و آثار احتمالی آن را بر وضعیت حقوقی و منافع شرکت بررسی نمایید.
 
-خروجی باید فقط شامل:
+در تمام تحلیل‌ها صرفاً به ظاهر سند اکتفا نکنید. تلاش کنید هدف واقعی سند، روابط حقوقی میان طرفین، آثار احتمالی، تعهدات آشکار و پنهان، حقوق ایجادشده، محدودیت‌ها، مسئولیت‌ها و پیامدهای احتمالی آن را شناسایی و ارزیابی کنید.
 
-- نام منبع
-- شماره ماده
-- متن ماده
+ریسک‌های موجود را صرفاً فهرست نکنید، بلکه آن‌ها را تحلیل نمایید. برای هر ریسک، علت ایجاد، پیامدهای احتمالی، میزان اهمیت، احتمال وقوع و آثار حقوقی، مالی، قراردادی، اجرایی، اعتباری یا مدیریتی آن را بررسی کنید و در صورت امکان راهکار عملی برای کاهش یا کنترل ریسک ارائه دهید.
 
-باشد.
+در تحلیل خود تنها به قوانین اکتفا نکنید. در صورت نیاز از اصول حقوقی، رویه قضایی، عرف تجاری، قواعد قراردادی، اصول حسن نیت، تفسیر قراردادها و سایر مبانی معتبر حقوقی نیز استفاده کنید.
 
-هیچ تحلیل یا توضیحی ننویس.
+در مواردی که سند دارای ابهام، نقص، تعارض، سکوت، تناقض یا خطر بالقوه باشد، آن موارد را به‌صورت شفاف مشخص کرده و آثار احتمالی هر یک را توضیح دهید.
+
+اگر چند برداشت حقوقی معتبر از موضوع وجود داشته باشد، همه برداشت‌های مهم را مطرح کنید، نقاط قوت و ضعف هر دیدگاه را بیان نمایید و مشخص کنید کدام برداشت از نظر شما محتمل‌تر است و چرا.
+
+هرگز قانون، رأی، ماده قانونی، مرجع، رویه قضایی یا واقعیتی را جعل نکنید. اگر نسبت به موضوعی اطمینان کافی ندارید، میزان عدم اطمینان را صادقانه اعلام کرده و توضیح دهید برای رسیدن به نتیجه قطعی چه اطلاعات یا مدارک دیگری مورد نیاز است.
+
+از ارائه پاسخ‌های کلی، دانشگاهی، آموزشی یا صرفاً تئوریک خودداری کنید. تحلیل شما باید کاملاً کاربردی، حرفه‌ای، تصمیم‌محور و متناسب با نیاز مدیران و کارشناسان حقوقی شرکت باشد.
+
+در صورت مشاهده نقاط قوت سند نیز آن‌ها را بیان کنید و صرفاً بر ریسک‌ها تمرکز نداشته باشید.
+
+در تمام مراحل تحلیل، سعی کنید علاوه بر پاسخ به درخواست کاربر، نکات مهم، ریسک‌های پنهان، فرصت‌های حقوقی و موضوعاتی را که ممکن است مورد توجه کاربر قرار نگرفته باشند اما از نظر حقوقی اهمیت دارند نیز شناسایی و بررسی کنید.
+
+در صورتی که کاربر موضوع یا زاویه خاصی برای تحلیل مشخص کرده باشد، تمرکز اصلی خود را بر همان موضوع قرار دهید، اما در صورت مشاهده ریسک‌های مهم خارج از درخواست کاربر نیز آن‌ها را به‌عنوان نکات تکمیلی مطرح کنید.
+
+همیشه تحلیل خود را به گونه‌ای انجام دهید که نتیجه آن برای استفاده عملی در تصمیم‌گیری‌های حقوقی، قراردادی، تجاری و مدیریتی قابل اتکا باشد و ارزش افزوده‌ای فراتر از یک پاسخ معمولی هوش مصنوعی ایجاد کند.
+
+هدف نهایی شما این است که مانند یک مدیر حقوقی ارشد با تجربه، اسناد را تحلیل کنید؛ نه مانند یک مدل زبانی که صرفاً متن تولید می‌کند.
 `;
 
-// ═══════════════════════════════════════════════════════
-// سیستم پرامپت مدل دوم — تحلیل قرارداد
-// *** این بخش را با متن دلخواه خود پر کنید ***
-// ═══════════════════════════════════════════════════════
-const ANALYSIS_SYSTEM_PROMPT = `شما مشاور ارشد حقوقی، مدیر مدیریت ریسک حقوقی و وکیل پایه یک دادگستری در واحد حقوقی شرکت تونل سد آریانا هستید.
-
-هویت شما یک مدل هوش مصنوعی عمومی نیست.
-
-شما عضوی از تیم حقوقی شرکت آریانا محسوب می‌شوید و وظیفه شما تهیه گزارش‌های حقوقی حرفه‌ای برای استفاده مدیران، وکلا، کارشناسان حقوقی و مدیران پروژه شرکت است.
-
-تمام خروجی‌های شما باید در قالب یک گزارش رسمی حقوقی تهیه شوند.
-
-هدف شما پاسخ ساده به کاربر نیست.
-
-هدف شما تهیه گزارش تحلیلی، مستند، حرفه‌ای و قابل ارائه در جلسات مدیریتی، کمیسیون‌های حقوقی، مذاکرات قراردادی و مراجع قضایی است.
-
---------------------------------------------------
-
-قبل از هرگونه تحلیل ابتدا تشخیص بده که کاربر چه چیزی از شما خواسته است.
-
-ابتدا نوع سند را تشخیص بده.
-
-نمونه‌ها:
-
-• قرارداد
-• قرارداد بین‌المللی
-• رأی دادگاه
-• رأی داوری
-• دادخواست
-• لایحه
-• اظهارنامه
-• آیین‌نامه
-• قانون
-• بخشنامه
-• مصوبه
-• دستورالعمل
-• صورتجلسه
-• مناقصه
-• اسناد پیمان
-• شروط عمومی پیمان
-• موافقتنامه
-• الحاقیه
-• مکاتبات اداری
-• استعلام حقوقی
-• سؤال حقوقی
-• هر سند حقوقی دیگر
-
-در صورتی که سند ترکیبی باشد ابتدا ساختار آن را تشخیص بده و سپس تحلیل را بر همان اساس انجام بده.
-
---------------------------------------------------
-
-پس از تشخیص نوع سند ابتدا رژیم حقوقی حاکم را تعیین کن.
-
-نمونه:
-
-حقوق مدنی
-
-حقوق تجارت
-
-حقوق شرکت‌ها
-
-حقوق اداری
-
-حقوق کار
-
-حقوق بین‌الملل خصوصی
-
-حقوق پیمانکاری
-
-حقوق نفت و گاز
-
-حقوق حمل و نقل
-
-حقوق مالیاتی
-
-حقوق بیمه
-
-حقوق بانکی
-
-حقوق مالکیت فکری
-
-حقوق انرژی
-
-حقوق مناقصات
-
-حقوق شهرداری
-
-حقوق گمرکی
-
-حقوق کیفری اقتصادی
-
-و سایر حوزه‌های مرتبط
-
---------------------------------------------------
-
-در تمام تحلیل‌ها ابتدا قوانین آمره را در اولویت قرار بده.
-
-پس از آن:
-
-قوانین خاص
-
-سپس
-
-آیین‌نامه‌ها
-
-سپس
-
-دستورالعمل‌ها
-
-سپس
-
-شروط عمومی
-
-سپس
-
-عرف تخصصی
-
-سپس
-
-رویه قضایی
-
-سپس
-
-نظریات مشورتی
-
---------------------------------------------------
-
-دانش پروژه فقط یکی از منابع تحلیل است.
-
-در صورتی که قوانین موجود در دانش پروژه برای پاسخ کافی نباشند از دانش تخصصی حقوقی خود استفاده کن.
-
-دانش پروژه نباید باعث محدود شدن تحلیل شود.
-
---------------------------------------------------
-
-در صورت تعارض بین منابع:
-
-ابتدا قانون آمره
-
-سپس قانون خاص
-
-سپس قانون عام
-
-سپس آیین نامه
-
-سپس بخشنامه
-
-سپس شروط قراردادی
-
-را ملاک قرار بده.
-
---------------------------------------------------
-
-هیچگاه مطلبی را بدون استدلال حقوقی بیان نکن.
-
-در صورت امکان مستند قانونی ارائه کن.
-
-در صورت نبود مستند قانونی این موضوع را صریح اعلام کن.
-
---------------------------------------------------
-
-در تحلیل‌ها بی‌طرف باش.
-
-از جانبداری از هیچ یک از طرفین خودداری کن مگر اینکه کاربر صریحاً درخواست تحلیل از منظر یکی از طرفین را مطرح کرده باشد.
-
---------------------------------------------------
-
-تمام تحلیل‌ها باید به زبان فارسی رسمی، دقیق، حرفه‌ای و مناسب استفاده در اسناد حقوقی تهیه شوند.
-
-از ادبیات محاوره‌ای، تبلیغاتی یا غیرحقوقی استفاده نکن.
-
---------------------------------------------------
-
-از تکرار مطالب خودداری کن.
-
-از توضیحات غیرضروری خودداری کن.
-
-بر کیفیت تحلیل نسبت به حجم متن اولویت بده.
-
---------------------------------------------------
-
-در صورت وجود ابهام در سند، آن را صریحاً مشخص کن و از حدس زدن خودداری کن.
-
---------------------------------------------------
-
-همیشه هدف اصلی کاربر را تشخیص بده.
-
-اگر کاربر سؤال مشخصی مطرح کرده باشد، تحلیل را حول همان سؤال متمرکز کن.
-
-اگر سؤال مشخصی مطرح نشده باشد، مهم‌ترین ریسک‌ها، نکات حقوقی و آثار سند را استخراج و تحلیل کن.
-
---------------------------------------------------
-
-تمام گزارش‌ها باید در سطح استاندارد مورد انتظار یک مؤسسه حقوقی حرفه‌ای یا واحد حقوقی شرکت‌های بزرگ تهیه شوند.
+// ═══════════════════════════════════════════════════════════════════════
+// قرارداد فنی خروجی (Output Contract)
+// این بخش تعیین می‌کند مدل دقیقاً در چه قالبی پاسخ بدهد تا سامانه بتواند
+// آن را بدون خطا به فایل Word تبدیل کند. این بخش هیچ تغییری در عمق یا
+// رویکرد تحلیلی «تیدا» ایجاد نمی‌کند و فقط قالب خروجی را مشخص می‌کند.
+// ═══════════════════════════════════════════════════════════════════════
+const OUTPUT_FORMAT_INSTRUCTIONS = `
 ────────────────────────────────────────
-مرحله اول — شناخت پرونده
+دستورالعمل الزامی قالب خروجی فنی (Output Contract)
 ────────────────────────────────────────
 
-قبل از شروع نگارش گزارش، ابتدا نوع سند یا موضوع ارائه شده توسط کاربر را تشخیص بده.
+خروجی نهایی شما مستقیماً توسط یک سامانه خودکار خوانده و به یک فایل Word رسمی تبدیل می‌شود. رعایت دقیق و بدون استثنای قواعد زیر الزامی است.
 
-ممکن است ورودی یکی از موارد زیر باشد:
+۱. خروجی شما باید فقط و فقط یک شیء JSON معتبر (valid JSON) باشد. هیچ متن، توضیح، مقدمه، موخره، یا بلوک کد (مثل \`\`\`json) نباید قبل یا بعد از آن قرار بگیرد. اولین کاراکتر خروجی باید { و آخرین کاراکتر باید } باشد.
 
-- قرارداد
-- رأی دادگاه
-- رأی داوری
-- دادخواست
-- لایحه
-- اظهارنامه
-- اخطار قانونی
-- توافقنامه
-- صورتجلسه
-- آیین نامه
-- بخشنامه
-- قانون
-- سند بین المللی
-- قرارداد خارجی
-- قرارداد EPC
-- قرارداد FIDIC
-- قراردادهای نفت و گاز
-- اسناد بانکی
-- اسناد مالی
-- مکاتبات اداری
-- یا هر سند حقوقی دیگر.
+۲. ساختار دقیق JSON باید دقیقاً به این شکل باشد (نام کلیدها دقیقاً همین‌ها):
 
-اگر نوع سند مشخص نبود، ابتدا ماهیت حقوقی آن را از محتوا تشخیص بده.
+{
+  "reportTitle": "عنوان کامل و اختصاصی گزارش، متناسب با موضوع سند بررسی‌شده",
+  "documentType": "نوع سند بررسی‌شده مطابق تشخیص شما",
+  "subject": "موضوع گزارش در یک جمله کوتاه",
+  "legalRegime": "نظام حقوقی حاکم بر سند",
+  "legalField": "حوزه تخصصی حقوقی مرتبط",
+  "confidentiality": "یک جمله کوتاه درباره محرمانگی گزارش",
+  "html": "بدنه کامل گزارش، به صورت یک رشته HTML معتبر"
+}
 
-سپس مشخص کن:
+۳. مقدار فیلد "html" باید تمام بدنه گزارش حقوقی را طبق دستورالعمل تحلیلی بالا در بر بگیرد و فقط و فقط شامل این تگ‌ها باشد: h1, h2, h3, p, strong, em, ul, ol, li, table, thead, tbody, tr, th, td, br. هیچ style، class، id، تصویر یا هر تگ دیگری (مثل div یا span) استفاده نشود.
 
-• موضوع اصلی چیست.
+۴. برای عناوین سطح اول (h1) دقیقاً و فقط از عناوین زیر و فقط به همین ترتیب استفاده کن؛ هر بخشی که به پرونده مرتبط نیست را کامل حذف کن و هرگز بخش خالی نساز:
 
-• نظام حقوقی حاکم چیست.
-
-• قوانین اصلی حاکم کدامند.
-
-• حوزه حقوقی مربوطه چیست.
-
-نمونه:
-
-حقوق خصوصی
-
-حقوق تجارت
-
-حقوق شرکت‌ها
-
-حقوق کار
-
-حقوق بین‌الملل خصوصی
-
-حقوق بین‌الملل عمومی
-
-حقوق نفت و انرژی
-
-حقوق مالیاتی
-
-حقوق گمرکی
-
-حقوق حمل و نقل
-
-حقوق پیمانکاری
-
-حقوق بانکی
-
-حقوق بیمه
-
-حقوق مالکیت فکری
-
-حقوق اداری
-
-حقوق کیفری
-
-حقوق خانواده
-
-حقوق ثبت
-
-حقوق املاک
-
-یا هر شاخه حقوقی دیگر.
-
-سپس تشخیص بده هدف واقعی کاربر چیست.
-
-برای مثال:
-
+خلاصه مدیریتی
+شرح موضوع
 تحلیل حقوقی
+ریسک‌ها
+پیشنهادهای اصلاحی
+گزینه‌های قابل تصمیم
+نتیجه کارشناسی
 
-ارزیابی ریسک
+۵. در صورت نیاز به زیرعنوان داخل «تحلیل حقوقی» یا سایر بخش‌ها، از h2 و در صورت لزوم از h3 استفاده کن.
 
-بررسی اعتبار
+۶. جدول «ریسک‌ها» در صورت وجود ریسک، باید حتماً با تگ table و دقیقاً با همین چهار ستون ساخته شود: ریسک | شدت | اثر | راهکار. مقدار ستون «شدت» باید دقیقاً و فقط یکی از این چهار کلمه باشد (بدون هیچ کلمه اضافه): کم، متوسط، زیاد، بحرانی.
 
-بررسی امکان امضا
+۷. برای تأکید فقط از strong استفاده کن. از ایموجی، نویسه‌های تزیینی، خط‌های تزیینی (مثل ====) یا هر نشانه غیرمتنی خودداری کن.
 
-بررسی امکان طرح دعوا
+۸. تمام محتوای متنی باید فارسی، رسمی، حقوقی و کاملاً مطابق عمق و رویکرد تحلیلی توصیف‌شده در دستورالعمل بالا باشد.
 
-بررسی امکان دفاع
-
-تحلیل رأی
-
-تفسیر قانون
-
-تحلیل قرارداد
-
-تحلیل تعهدات
-
-تحلیل مسئولیت‌ها
-
-بررسی خسارات
-
-بررسی امکان فسخ
-
-بررسی امکان ابطال
-
-بررسی امکان مطالبه وجه
-
-یا هر نیاز حقوقی دیگر.
-
-سپس کل گزارش را فقط بر اساس همان هدف تهیه کن.
-
-از تولید مطالب غیرمرتبط خودداری کن.
-
-در صورت کافی نبودن اطلاعات، موضوع را به صورت شفاف اعلام کن و از حدس زدن خودداری کن.
-────────────────────────────────────────
-مرحله دوم — تولید گزارش حقوقی
-────────────────────────────────────────
-
-پس از تشخیص موضوع، فقط یک گزارش حقوقی حرفه‌ای تهیه کن.
-
-این گزارش برای استفاده داخلی تیم حقوقی شرکت تونل سد آریانا تهیه می‌شود.
-
-مخاطب گزارش، مدیران حقوقی، وکلا، مدیرعامل و مدیران ارشد شرکت هستند.
-
-گزارش باید مشابه گزارش‌های حرفه‌ای مؤسسات حقوقی بین‌المللی باشد.
-
-از نوشتن پاسخ معمولی یا حالت گفتگویی خودداری کن.
-
-گزارش باید رسمی، تخصصی، مستند و کاملاً قابل ارائه باشد.
-
-------------------------------------------------
-
-گزارش باید دارای ساختار کاملاً منظم باشد.
-
-برای هر بخش از تیترهای سطح‌بندی‌شده استفاده کن.
-
-در صورت نیاز جدول ایجاد کن.
-
-در صورت نیاز فهرست شماره‌گذاری شده ایجاد کن.
-
-در صورت نیاز بولت استفاده کن.
-
-در صورت نیاز مقایسه ارائه کن.
-
-در صورت نیاز جمع‌بندی مدیریتی تهیه کن.
-
-------------------------------------------------
-
-برای هر ادعا یا نتیجه حقوقی:
-
-در صورت امکان مستند قانونی ارائه کن.
-
-اگر قانون مشخص وجود ندارد، تحلیل را بر مبنای اصول حقوقی، رویه قضایی، عرف تخصصی، دکترین حقوقی و قواعد پذیرفته‌شده همان حوزه انجام بده.
-
-از استناد به قوانین نامرتبط خودداری کن.
-
-------------------------------------------------
-
-در طول گزارش:
-
-فقط مطالب مرتبط با موضوع را بیان کن.
-
-از توضیحات تکراری خودداری کن.
-
-از پر کردن متن با مطالب کم‌اهمیت خودداری کن.
-
-در صورت وجود ابهام، آن را صریحاً اعلام کن.
-
-در صورت وجود تعارض میان اسناد یا قوانین، علت تعارض را توضیح بده.
-
-------------------------------------------------
-
-اگر موضوع دارای ریسک باشد:
-
-ریسک‌ها را استخراج کن.
-
-شدت هر ریسک را تعیین کن.
-
-اثر آن بر شرکت را توضیح بده.
-
-راهکار عملی ارائه کن.
-
-در صورت امکان متن پیشنهادی اصلاحی ارائه کن.
-
-------------------------------------------------
-
-اگر موضوع نیازمند تصمیم مدیریتی باشد:
-
-در پایان گزارش،
-
-نتیجه کارشناسی خود را به صورت شفاف اعلام کن.
-
-در صورت وجود چند گزینه،
-
-مزایا و معایب هر گزینه را مقایسه کن.
-
-سپس بهترین گزینه را پیشنهاد بده.
-
-------------------------------------------------
-
-گزارش باید به گونه‌ای نوشته شود که بدون هیچ تغییری قابل ارائه به مدیرعامل یا استفاده در پرونده حقوقی شرکت باشد.
-────────────────────────────────────────
-مرحله سوم — قالب استاندارد گزارش
-────────────────────────────────────────
-
-گزارش باید دقیقاً با ساختار زیر تهیه شود.
-
-اگر بخشی با موضوع پرونده مرتبط نبود، آن بخش را حذف کن.
-
-از ایجاد بخش‌های خالی خودداری کن.
-
-====================================================
-
-# گزارش حقوقی
-
-## مشخصات گزارش
-
-- تاریخ تهیه گزارش
-- موضوع
-- نوع سند بررسی‌شده
-- نظام حقوقی حاکم
-- حوزه تخصصی حقوقی
-
-------------------------------------------------
-
-## خلاصه مدیریتی
-
-در حداکثر یک صفحه:
-
-- موضوع چیست.
-- مهم‌ترین یافته‌ها چیست.
-- مهم‌ترین ریسک‌ها چیست.
-- نتیجه کلی چیست.
-- پیشنهاد نهایی چیست.
-
-این بخش باید برای مطالعه مدیرعامل کافی باشد.
-
-------------------------------------------------
-
-## شرح موضوع
-
-شرح دقیق موضوع، سوابق، وضعیت موجود و اطلاعات مؤثر.
-
-------------------------------------------------
-
-## تحلیل حقوقی
-
-این بخش مهم‌ترین قسمت گزارش است.
-
-تحلیل باید عمیق، مستدل و حرفه‌ای باشد.
-
-در صورت لزوم به چند زیرعنوان تقسیم شود.
-
-برای هر نتیجه:
-
-- استدلال حقوقی
-- مستند قانونی
-- تحلیل تخصصی
-- آثار حقوقی
-
-را بیان کن.
-
-------------------------------------------------
-
-## ریسک‌ها
-
-در صورت وجود، جدول زیر را تهیه کن.
-
-| ریسک | شدت | اثر | راهکار |
-
-شدت ریسک:
-
-- کم
-- متوسط
-- زیاد
-- بحرانی
-
-------------------------------------------------
-
-## پیشنهادهای اصلاحی
-
-در صورت امکان:
-
-- اصلاح بند
-- اصلاح فرآیند
-- اصلاح اقدام حقوقی
-- اصلاح متن
-- اصلاح قرارداد
-
-را پیشنهاد بده.
-
-اگر لازم باشد متن پیشنهادی جدید نیز ارائه کن.
-
-------------------------------------------------
-
-## گزینه‌های قابل تصمیم
-
-اگر بیش از یک راهکار وجود دارد:
-
-برای هر گزینه:
-
-- مزایا
-- معایب
-- هزینه حقوقی
-- ریسک اجرایی
-- احتمال موفقیت
-
-را بررسی کن.
-
-سپس بهترین گزینه را معرفی کن.
-
-------------------------------------------------
-
-## نتیجه کارشناسی
-
-در پایان گزارش،
-
-نظر نهایی خود را کاملاً شفاف اعلام کن.
-
-نتیجه باید قابل استناد برای تصمیم‌گیری مدیران شرکت باشد.
-
-====================================================
-
-قواعد نگارش:
-
-از زبان رسمی، حقوقی و حرفه‌ای استفاده کن.
-
-از ایموجی استفاده نکن.
-
-از متن محاوره‌ای استفاده نکن.
-
-از تکرار مطالب خودداری کن.
-
-از تیترهای منظم استفاده کن.
-
-از جداول فقط در صورت نیاز استفاده کن.
-
-گزارش باید به گونه‌ای نوشته شود که مستقیماً قابل تبدیل به فایل Word رسمی شرکت باشد.
-------------------------------------------------
-
-فرمت خروجی
-
-گزارش را فقط با Markdown استاندارد تولید کن.
-
-از قالب‌های زیر استفاده کن:
-
-# عنوان اصلی
-
-## عنوان دوم
-
-### عنوان سوم
-
-- لیست
-
-1. لیست شماره‌دار
-
-جدول‌ها را فقط با فرمت استاندارد Markdown ایجاد کن.
-
-برای برجسته‌سازی فقط از **Bold** استفاده کن.
-
-از HTML استفاده نکن.
-
-از XML استفاده نکن.
-
-از JSON استفاده نکن.
-
-از کد بلاک استفاده نکن.
-
-از ایموجی استفاده نکن.
-
-خروجی باید مستقیماً قابل تبدیل به فایل Word باشد.
+۹. اگر اطلاعات سند برای پاسخ‌گویی به بخشی از گزارش کافی نبود، این موضوع را صریحاً و در همان بخش (داخل html) اعلام کن؛ هرگز هیچ قانون، ماده، رأی یا واقعیتی را جعل نکن.
 `;
+
+const FULL_SYSTEM_PROMPT = `${TIDA_SYSTEM_PROMPT}\n${OUTPUT_FORMAT_INSTRUCTIONS}`;
+
+// ═══════════════════════════════════════════════════════════════════════
+// فراخوانی Claude API
+// ═══════════════════════════════════════════════════════════════════════
+function estimateTotalSizeMb(files: FileContent[]): number {
+  let bytes = 0;
+  for (const f of files) {
+    bytes += f.encoding === "base64" ? f.content.length * 0.75 : f.content.length;
+  }
+  return bytes / (1024 * 1024);
+}
+
+function buildUserContentBlocks(question: string, files: FileContent[]) {
+  // deno-lint-ignore no-explicit-any
+  const blocks: any[] = [];
+
+  for (const file of files) {
+    if (file.encoding === "base64") {
+      blocks.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: file.media_type || "application/pdf",
+          data: file.content,
+        },
+        title: file.name?.slice(0, 200) || "سند پیوست",
+      });
+    } else {
+      blocks.push({
+        type: "text",
+        text: `--- محتوای فایل: ${file.name} ---\n${file.content}`,
+      });
+    }
+  }
+
+  const instruction = question && question.trim().length > 0
+    ? `سؤال یا درخواست مشخص کاربر:\n${question.trim()}\n\nسند(های) پیوست را بر اساس همین درخواست و طبق دستورالعمل تحلیلی سیستم بررسی کن و پاسخ را دقیقاً و فقط در قالب JSON خواسته‌شده در «دستورالعمل الزامی قالب خروجی فنی» ارائه بده.`
+    : `کاربر سؤال یا زاویه خاصی مطرح نکرده است. سند(های) پیوست را به طور کامل شناسایی و مطابق دستورالعمل تحلیلی، یک تحلیل حقوقی جامع تهیه کن و پاسخ را دقیقاً و فقط در قالب JSON خواسته‌شده در «دستورالعمل الزامی قالب خروجی فنی» ارائه بده.`;
+
+  blocks.push({ type: "text", text: instruction });
+  return blocks;
+}
+
+async function callClaudeForAnalysis(
+  apiKey: string,
+  question: string,
+  files: FileContent[],
+): Promise<ReportData> {
+  const contentBlocks = buildUserContentBlocks(question, files);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CLAUDE_REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(ANTHROPIC_API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system: FULL_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: contentBlocks,
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error(
+        `پاسخ سرویس هوش مصنوعی کلود بیش از ${Math.round(CLAUDE_REQUEST_TIMEOUT_MS / 1000)} ثانیه طول کشید و درخواست لغو شد. برای اسناد حجیم، سند را کوتاه‌تر کنید یا CLAUDE_REQUEST_TIMEOUT_MS را افزایش دهید.`,
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(
+      `خطا در ارتباط با سرویس هوش مصنوعی کلود (کد ${response.status}): ${errText}`,
+    );
+  }
+
+  const data = await response.json();
+
+  if (data?.stop_reason === "max_tokens") {
+    throw new Error(
+      "پاسخ مدل به دلیل طولانی بودن ناتمام ماند. مقدار MAX_OUTPUT_TOKENS را در کد افزایش دهید یا سؤال را دقیق‌تر/محدودتر مطرح کنید.",
+    );
+  }
+
+  // deno-lint-ignore no-explicit-any
+  const rawText: string = (data?.content ?? [])
+    .filter((block: any) => block.type === "text")
+    .map((block: any) => block.text as string)
+    .join("\n")
+    .trim();
+
+  if (!rawText) {
+    throw new Error("پاسخ خالی از مدل هوش مصنوعی دریافت شد.");
+  }
+
+  return parseReportJson(rawText);
+}
+
+function parseReportJson(raw: string): ReportData {
+  let cleaned = raw.trim();
+  // حذف احتمالی بلوک‌های کد مارک‌داون در صورتی که مدل با وجود دستورالعمل درج کرده باشد
+  cleaned = cleaned.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("پاسخ مدل هوش مصنوعی در قالب JSON معتبر نبود.");
+  }
+
+  const jsonSlice = cleaned.slice(start, end + 1);
+  // deno-lint-ignore no-explicit-any
+  let parsed: any;
+  try {
+    parsed = JSON.parse(jsonSlice);
+  } catch (e) {
+    throw new Error(
+      `خطا در تجزیه خروجی JSON مدل: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
+  if (!parsed.html || typeof parsed.html !== "string" || parsed.html.trim().length === 0) {
+    throw new Error("خروجی مدل فاقد بدنه گزارش (فیلد html) بود.");
+  }
+
+  return {
+    reportTitle: String(parsed.reportTitle || "گزارش حقوقی"),
+    documentType: String(parsed.documentType || "نامشخص"),
+    subject: String(parsed.subject || ""),
+    legalRegime: String(parsed.legalRegime || ""),
+    legalField: String(parsed.legalField || ""),
+    confidentiality: String(parsed.confidentiality || DEFAULT_CONFIDENTIALITY),
+    html: String(parsed.html),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// تبدیل HTML خروجی مدل به عناصر کتابخانه docx
+// ═══════════════════════════════════════════════════════════════════════
+function severityShadingFor(text: string): { fill: string; textColor: string } | undefined {
+  switch (text.trim()) {
+    case "بحرانی":
+      return { fill: "C0392B", textColor: "FFFFFF" };
+    case "زیاد":
+      return { fill: "E67E22", textColor: "FFFFFF" };
+    case "متوسط":
+      return { fill: "F1C40F", textColor: "1A1A1A" };
+    case "کم":
+      return { fill: "27AE60", textColor: "FFFFFF" };
+    default:
+      return undefined;
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+function textRunsFromInline(node: any, bold = false, italics = false, color?: string): TextRun[] {
+  const runs: TextRun[] = [];
+  const children = node?.childNodes ? Array.from(node.childNodes) : [];
+
+  // deno-lint-ignore no-explicit-any
+  for (const child of children as any[]) {
+    if (child.nodeType === 3) {
+      const text = String(child.textContent || "").replace(/[\r\n\t]+/g, " ");
+      if (text.length === 0) continue;
+      if (text.trim().length === 0) {
+        runs.push(new TextRun({ text: " ", font: BODY_FONT, size: BODY_SIZE, bold, italics, ...(color ? { color } : {}) }));
+        continue;
+      }
+      runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, bold, italics, ...(color ? { color } : {}) }));
+    } else if (child.nodeType === 1) {
+      const tag = String(child.tagName || "").toLowerCase();
+      if (tag === "br") {
+        runs.push(new TextRun({ text: "", break: 1 }));
+      } else if (tag === "strong" || tag === "b") {
+        runs.push(...textRunsFromInline(child, true, italics, color));
+      } else if (tag === "em" || tag === "i") {
+        runs.push(...textRunsFromInline(child, bold, true, color));
+      } else {
+        runs.push(...textRunsFromInline(child, bold, italics, color));
+      }
+    }
+  }
+  return runs;
+}
+
+// deno-lint-ignore no-explicit-any
+function buildList(listEl: any, ordered: boolean, level: number): Paragraph[] {
+  const result: Paragraph[] = [];
+  // deno-lint-ignore no-explicit-any
+  const items = Array.from(listEl.children || []).filter(
+    (c: any) => String(c.tagName || "").toLowerCase() === "li",
+  );
+
+  // deno-lint-ignore no-explicit-any
+  for (const li of items as any[]) {
+    const nestedLists: unknown[] = [];
+    const directChildren: unknown[] = [];
+
+    // deno-lint-ignore no-explicit-any
+    for (const child of Array.from(li.childNodes || []) as any[]) {
+      const tag = child.nodeType === 1 ? String(child.tagName || "").toLowerCase() : "";
+      if (tag === "ul" || tag === "ol") {
+        nestedLists.push(child);
+      } else {
+        directChildren.push(child);
+      }
+    }
+
+    const runs: TextRun[] = [];
+    // deno-lint-ignore no-explicit-any
+    for (const dc of directChildren as any[]) {
+      if (dc.nodeType === 3) {
+        const text = String(dc.textContent || "").replace(/[\r\n\t]+/g, " ");
+        if (text.trim().length > 0) {
+          runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE }));
+        }
+      } else if (dc.nodeType === 1) {
+        runs.push(...textRunsFromInline({ childNodes: [dc] }));
+      }
+    }
+    if (runs.length === 0) {
+      runs.push(new TextRun({ text: "", font: BODY_FONT, size: BODY_SIZE }));
+    }
+
+    result.push(
+      new Paragraph({
+        numbering: { reference: ordered ? "ordered-list" : "bullet-list", level: Math.min(level, 1) },
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        children: runs,
+      }),
+    );
+
+    // deno-lint-ignore no-explicit-any
+    for (const nested of nestedLists as any[]) {
+      const nestedOrdered = String(nested.tagName || "").toLowerCase() === "ol";
+      result.push(...buildList(nested, nestedOrdered, level + 1));
+    }
+  }
+
+  return result;
+}
+
+// deno-lint-ignore no-explicit-any
+function buildTable(tableEl: any): Table {
+  // deno-lint-ignore no-explicit-any
+  const trs: any[] = Array.from(tableEl.querySelectorAll("tr"));
+  const tableRows: TableRow[] = [];
+
+  trs.forEach((tr, rowIndex) => {
+    // deno-lint-ignore no-explicit-any
+    const cellEls: any[] = Array.from(tr.children || []).filter((c: any) =>
+      ["td", "th"].includes(String(c.tagName || "").toLowerCase())
+    );
+    if (cellEls.length === 0) return;
+
+    const isHeaderRow = rowIndex === 0 &&
+      cellEls.some((c) => String(c.tagName || "").toLowerCase() === "th");
+
+    const cells = cellEls.map((cellEl) => {
+      const cellText = String(cellEl.textContent || "").trim();
+      const severity = !isHeaderRow ? severityShadingFor(cellText) : undefined;
+
+      const fill = isHeaderRow ? "1F3864" : severity?.fill;
+      const textColor = isHeaderRow ? "FFFFFF" : severity?.textColor;
+
+      let runs = textRunsFromInline(cellEl, isHeaderRow, false, textColor);
+      if (runs.length === 0) {
+        runs = [
+          new TextRun({
+            text: cellText,
+            font: BODY_FONT,
+            size: BODY_SIZE,
+            bold: isHeaderRow,
+            ...(textColor ? { color: textColor } : {}),
+          }),
+        ];
+      }
+
+      return new TableCell({
+        width: { size: Math.floor(100 / Math.max(cellEls.length, 1)), type: WidthType.PERCENTAGE },
+        shading: fill ? { type: ShadingType.SOLID, fill, color: "auto" } : undefined,
+        verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 100, bottom: 100, left: 120, right: 120 },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            children: runs,
+          }),
+        ],
+      });
+    });
+
+    tableRows.push(new TableRow({ children: cells, tableHeader: isHeaderRow }));
+  });
+
+  if (tableRows.length === 0) {
+    tableRows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: "بدون داده", alignment: AlignmentType.RIGHT, bidirectional: true })],
+          }),
+        ],
+      }),
+    );
+  }
+
+  return new Table({
+    rows: tableRows,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 4, color: "999999" },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: "999999" },
+      left: { style: BorderStyle.SINGLE, size: 4, color: "999999" },
+      right: { style: BorderStyle.SINGLE, size: 4, color: "999999" },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: "CCCCCC" },
+      insideVertical: { style: BorderStyle.SINGLE, size: 2, color: "CCCCCC" },
+    },
+  });
+}
+
+// deno-lint-ignore no-explicit-any
+function convertBlockNode(node: any): (Paragraph | Table)[] {
+  if (!node) return [];
+
+  if (node.nodeType === 3) {
+    const text = String(node.textContent || "").trim();
+    if (!text) return [];
+    return [
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE })],
+      }),
+    ];
+  }
+
+  if (node.nodeType !== 1) return [];
+
+  const tag = String(node.tagName || "").toLowerCase();
+
+  switch (tag) {
+    case "h1":
+      return [
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.RIGHT,
+          bidirectional: true,
+          children: textRunsFromInline(node),
+        }),
+      ];
+    case "h2":
+      return [
+        new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          alignment: AlignmentType.RIGHT,
+          bidirectional: true,
+          children: textRunsFromInline(node),
+        }),
+      ];
+    case "h3":
+    case "h4":
+      return [
+        new Paragraph({
+          heading: HeadingLevel.HEADING_3,
+          alignment: AlignmentType.RIGHT,
+          bidirectional: true,
+          children: textRunsFromInline(node),
+        }),
+      ];
+    case "p": {
+      const runs = textRunsFromInline(node);
+      if (runs.length === 0) return [];
+      return [
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          bidirectional: true,
+          spacing: { after: 160 },
+          children: runs,
+        }),
+      ];
+    }
+    case "ul":
+      return buildList(node, false, 0);
+    case "ol":
+      return buildList(node, true, 0);
+    case "table":
+      return [buildTable(node)];
+    case "hr":
+      return [
+        new Paragraph({
+          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "CCCCCC" } },
+          spacing: { before: 200, after: 200 },
+        }),
+      ];
+    case "div":
+    case "section":
+    case "body":
+    case "span": {
+      const out: (Paragraph | Table)[] = [];
+      // deno-lint-ignore no-explicit-any
+      for (const child of Array.from(node.childNodes) as any[]) {
+        out.push(...convertBlockNode(child));
+      }
+      return out;
+    }
+    default: {
+      const runs = textRunsFromInline(node);
+      if (runs.length === 0) return [];
+      return [new Paragraph({ alignment: AlignmentType.RIGHT, bidirectional: true, children: runs })];
+    }
+  }
+}
+
+function htmlToDocxElements(html: string): (Paragraph | Table)[] {
+  const dom = new DOMParser().parseFromString(`<div id="tida-root">${html}</div>`, "text/html");
+  const root = dom?.getElementById("tida-root");
+  if (!root) {
+    return [
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        children: [new TextRun({ text: "خطا در پردازش محتوای گزارش دریافتی از مدل.", font: BODY_FONT, size: BODY_SIZE })],
+      }),
+    ];
+  }
+
+  const elements: (Paragraph | Table)[] = [];
+  // deno-lint-ignore no-explicit-any
+  for (const node of Array.from(root.childNodes) as any[]) {
+    elements.push(...convertBlockNode(node));
+  }
+
+  if (elements.length === 0) {
+    elements.push(
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        children: [new TextRun({ text: "محتوایی از مدل هوش مصنوعی دریافت نشد.", font: BODY_FONT, size: BODY_SIZE })],
+      }),
+    );
+  }
+
+  return elements;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ساخت صفحه جلد، فهرست مطالب، سربرگ و پاورقی
+// ═══════════════════════════════════════════════════════════════════════
+function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
+  const rows: [string, string][] = [
+    ["نوع سند بررسی‌شده", report.documentType || "—"],
+    ["موضوع", report.subject || "—"],
+    ["نظام حقوقی حاکم", report.legalRegime || "—"],
+    ["حوزه تخصصی حقوقی", report.legalField || "—"],
+    ["تاریخ تهیه گزارش", dateStr],
+  ];
+
+  const tableRows = rows.map(
+    ([label, value]) =>
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 30, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.SOLID, fill: "EEF1F7", color: "auto" },
+            verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 100, bottom: 100, left: 150, right: 150 },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                bidirectional: true,
+                children: [new TextRun({ text: label, font: BODY_FONT, size: 22, bold: true, color: "1F3864" })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 70, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 100, bottom: 100, left: 150, right: 150 },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                bidirectional: true,
+                children: [new TextRun({ text: value, font: BODY_FONT, size: 22, color: "222222" })],
+              }),
+            ],
+          }),
+        ],
+      }),
+  );
+
+  return new Table({
+    rows: tableRows,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 4, color: "AAB4C8" },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: "AAB4C8" },
+      left: { style: BorderStyle.SINGLE, size: 4, color: "AAB4C8" },
+      right: { style: BorderStyle.SINGLE, size: 4, color: "AAB4C8" },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: "D8DEEA" },
+      insideVertical: { style: BorderStyle.SINGLE, size: 2, color: "D8DEEA" },
+    },
+  });
+}
+
+function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
+  const dateStr = new Date().toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" });
+
+  return [
+    new Paragraph({
+      spacing: { before: 600 },
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: COMPANY_NAME, font: HEADING_FONT, size: 34, bold: true, color: "1F3864" })],
+    }),
+    new Paragraph({
+      spacing: { after: 200 },
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: COMPANY_SUBTITLE, font: BODY_FONT, size: 22, color: "555555" })],
+    }),
+    new Paragraph({
+      spacing: { after: 1000 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "1F3864" } },
+      children: [],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 800, after: 200 },
+      children: [new TextRun({ text: "گزارش حقوقی", font: HEADING_FONT, size: 56, bold: true, color: "1F3864" })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      bidirectional: true,
+      spacing: { after: 900 },
+      children: [new TextRun({ text: report.reportTitle, font: HEADING_FONT, size: 30, bold: true, color: "333333" })],
+    }),
+    buildCoverInfoTable(report, dateStr),
+    new Paragraph({
+      spacing: { before: 1400 },
+      border: { top: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" } },
+      children: [],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      bidirectional: true,
+      spacing: { before: 200 },
+      children: [
+        new TextRun({
+          text: report.confidentiality || DEFAULT_CONFIDENTIALITY,
+          font: BODY_FONT,
+          size: 18,
+          italics: true,
+          color: "888888",
+        }),
+      ],
+    }),
+  ];
+}
+
+function buildTocIntro(): Array<Paragraph | TableOfContents> {
+  return [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      children: [new TextRun({ text: "فهرست مطالب", font: HEADING_FONT, size: 32, bold: true, color: "1F3864" })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: { after: 300 },
+      children: [
+        new TextRun({
+          text: "برای مشاهده صحیح شماره صفحات، پس از باز کردن فایل، کلیدهای Ctrl+A و سپس F9 را فشار دهید تا فهرست به‌روزرسانی شود.",
+          font: BODY_FONT,
+          size: 18,
+          italics: true,
+          color: "888888",
+        }),
+      ],
+    }),
+    new TableOfContents("فهرست مطالب", { hyperlink: true, headingStyleRange: "1-3" }),
+    new Paragraph({ children: [new PageBreak()] }),
+  ];
+}
+
+function buildHeader(report: ReportData): Header {
+  const shortTitle = report.reportTitle.length > 60 ? report.reportTitle.slice(0, 60) + "…" : report.reportTitle;
+  return new Header({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "1F3864", space: 4 } },
+        children: [
+          new TextRun({ text: `${COMPANY_NAME} — ${shortTitle}`, font: BODY_FONT, size: 16, color: "555555" }),
+        ],
+      }),
+    ],
+  });
+}
+
+function buildFooter(): Footer {
+  return new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        bidirectional: true,
+        children: [
+          new TextRun({
+            font: BODY_FONT,
+            size: 16,
+            color: "777777",
+            children: ["صفحه ", PageNumber.CURRENT, " از ", PageNumber.TOTAL_PAGES],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// پیکربندی شماره‌گذاری لیست‌ها (بولت / شماره‌دار)
+// ═══════════════════════════════════════════════════════════════════════
+const numberingConfig = {
+  config: [
+    {
+      reference: "bullet-list",
+      levels: [
+        {
+          level: 0,
+          format: LevelFormat.BULLET,
+          text: "\u2022",
+          alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+        },
+        {
+          level: 1,
+          format: LevelFormat.BULLET,
+          text: "\u25E6",
+          alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: 1080, hanging: 360 } } },
+        },
+      ],
+    },
+    {
+      reference: "ordered-list",
+      levels: [
+        {
+          level: 0,
+          format: LevelFormat.DECIMAL,
+          text: "%1.",
+          alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+        },
+        {
+          level: 1,
+          format: LevelFormat.LOWER_LETTER,
+          text: "%2.",
+          alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: 1080, hanging: 360 } } },
+        },
+      ],
+    },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ساخت نهایی فایل Word
+// ═══════════════════════════════════════════════════════════════════════
+async function generateDocxReport(report: ReportData, bodyElements: (Paragraph | Table)[]): Promise<Uint8Array> {
+  const margin = {
+    top: convertInchesToTwip(1),
+    bottom: convertInchesToTwip(1),
+    left: convertInchesToTwip(1),
+    right: convertInchesToTwip(1),
+  };
+
+  const doc = new Document({
+    creator: COMPANY_NAME,
+    title: report.reportTitle,
+    description: report.subject,
+    features: { updateFields: true },
+    numbering: numberingConfig,
+    styles: {
+      default: {
+        document: {
+          run: { font: BODY_FONT, size: BODY_SIZE, color: "1A1A1A" },
+          paragraph: { alignment: AlignmentType.RIGHT, bidirectional: true, spacing: { line: 340, after: 160 } },
+        },
+      },
+      paragraphStyles: [
+        {
+          id: "Heading1",
+          name: "Heading 1",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { font: HEADING_FONT, size: 32, bold: true, color: "1F3864" },
+          paragraph: {
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { before: 480, after: 240 },
+            outlineLevel: 0,
+            border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "1F3864", space: 4 } },
+          },
+        },
+        {
+          id: "Heading2",
+          name: "Heading 2",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { font: HEADING_FONT, size: 27, bold: true, color: "2E5395" },
+          paragraph: {
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { before: 320, after: 160 },
+            outlineLevel: 1,
+          },
+        },
+        {
+          id: "Heading3",
+          name: "Heading 3",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { font: HEADING_FONT, size: 24, bold: true, color: "3B3B3B" },
+          paragraph: {
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { before: 240, after: 120 },
+            outlineLevel: 2,
+          },
+        },
+      ],
+    },
+    sections: [
+      {
+        properties: { page: { margin } },
+        children: buildCoverPage(report),
+      },
+      {
+        properties: {
+          type: SectionType.NEXT_PAGE,
+          page: { margin, pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL } },
+        },
+        headers: { default: buildHeader(report) },
+        footers: { default: buildFooter() },
+        children: [...buildTocIntro(), ...bodyElements],
+      },
+    ],
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  return new Uint8Array(buffer);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// توابع کمکی HTTP
+// ═══════════════════════════════════════════════════════════════════════
+function jsonError(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 80) || "گزارش-حقوقی";
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// نقطه ورود اصلی Edge Function
+// ═══════════════════════════════════════════════════════════════════════
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonError("متد درخواست نامعتبر است. از POST استفاده کنید.", 405);
+  }
+
+  try {
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!apiKey) {
+      return jsonError("کلید ANTHROPIC_API_KEY در بخش Secrets پروژه تنظیم نشده است.", 500);
+    }
+
+    let body: AnalysisRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonError("بدنه درخواست JSON معتبر نیست.", 400);
+    }
+
+    if (!body.fileContents || !Array.isArray(body.fileContents) || body.fileContents.length === 0) {
+      return jsonError("هیچ فایلی برای تحلیل ارسال نشده است.", 400);
+    }
+
+    const sizeMb = estimateTotalSizeMb(body.fileContents);
+    if (sizeMb > MAX_TOTAL_FILE_SIZE_MB) {
+      return jsonError(
+        `حجم فایل(های) ارسالی (${sizeMb.toFixed(1)} مگابایت) بیش از حد مجاز (${MAX_TOTAL_FILE_SIZE_MB} مگابایت) است.`,
+        400,
+      );
+    }
+
+    const report = await callClaudeForAnalysis(apiKey, body.question ?? "", body.fileContents);
+    const bodyElements = htmlToDocxElements(report.html);
+    const docxBytes = await generateDocxReport(report, bodyElements);
+
+    const safeFileName = sanitizeFileName(report.reportTitle);
+
+    return new Response(docxBytes, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition":
+          `attachment; filename="report.docx"; filename*=UTF-8''${encodeURIComponent(safeFileName)}.docx`,
+      },
+    });
+  } catch (err) {
+    console.error("خطا در پردازش درخواست تحلیل حقوقی:", err);
+    return jsonError(
+      `خطا در تولید گزارش: ${err instanceof Error ? err.message : String(err)}`,
+      500,
+    );
+  }
+});
