@@ -327,7 +327,7 @@ export default function ContractAnalysis() {
               <Menu size={20} className="text-navy-700" />
             </button>
             <div>
-              <h1 className="text-lg font-bold text-navy-900">تحلیل قرارداد فارسی</h1>
+              <h1 className="text-lg font-bold text-navy-900">تحلیلگر تیدا </h1>
               <p className="text-xs text-navy-500">دستیار حقوقی آریانا</p>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function ContractAnalysis() {
               <div className="w-16 h-16 bg-gradient-to-br from-navy-100 to-sky-100 rounded-2xl flex items-center justify-center mb-4">
                 <FileText size={32} className="text-navy-600" />
               </div>
-              <h2 className="text-2xl font-bold text-navy-900 mb-2">شروع تحلیل قرارداد</h2>
+              <h2 className="text-2xl font-bold text-navy-900 mb-2">شروع تحلیل </h2>
               <p className="text-navy-500 max-w-md">
                 فایل قرارداد خود را آپلود کنید و سؤالات حقوقی را مطرح کنید. دستیار آریانا تحلیل جامع حقوقی ارائه می‌دهد.
               </p>
@@ -434,7 +434,7 @@ export default function ContractAnalysis() {
               <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Loader size={16} className="text-navy-600 animate-spin" />
-                  <p className="text-sm text-navy-600">در حال تحلیل قرارداد...</p>
+                  <p className="text-sm text-navy-600">در حال تحلیل ...</p>
                 </div>
               </div>
             </div>
