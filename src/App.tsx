@@ -10,7 +10,6 @@ function App() {
         <Route path="/fa-analysis" element={<ContractAnalysis />} />
         <Route path="/fa-analysis/:conversationId" element={<ContractAnalysis />} />
         <Route path="/drafting" element={<div>صفحه تحریر قرارداد - به زودی</div>} />
-        <Route path="/intl-analysis" element={<div>صفحه تحلیل قرارداد بین‌المللی - به زودی</div>} />
       </Routes>
     </Router>
   );

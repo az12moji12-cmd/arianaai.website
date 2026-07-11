@@ -5,7 +5,6 @@ import {
   X,
   FileText,
   PenTool,
-  Globe,
   ChevronLeft,
   Shield,
   Zap,
@@ -54,21 +53,6 @@ const FEATURES = [
     iconBg: 'bg-sky-100',
     badgeColor: 'bg-sky-100 text-sky-700',
     href: '/drafting',
-  },
-  {
-    id: 'intl-analysis',
-    icon: Globe,
-    title: 'تحلیل قرارداد بین‌المللی',
-    description:
-      'بررسی قراردادهای بین‌المللی پروژه‌های عمرانی و پیمانکاری با تطبیق بر استانداردهای FIDIC، اینکوترمز و حقوق تجارت بین‌الملل.',
-    tags: ['FIDIC', 'اینکوترمز', 'حقوق بین‌الملل'],
-    color: 'from-blue-600 to-navy-800',
-    lightColor: 'bg-blue-50',
-    accentColor: 'text-blue-600',
-    borderColor: 'border-blue-200',
-    iconBg: 'bg-blue-100',
-    badgeColor: 'bg-blue-100 text-blue-700',
-    href: '/intl-analysis',
   },
 ];
 
@@ -331,7 +315,7 @@ export default function Home() {
               ابزارهای سامانه
             </div>
             <h2 className="text-3xl md:text-5xl font-bold text-navy-900 mb-5 leading-tight">
-              سه ابزار کاربردی
+              دو ابزار کاربردی
               <span className="gradient-text"> برای دپارتمان حقوقی</span>
             </h2>
             <p className="text-navy-500 text-base md:text-lg max-w-2xl mx-auto leading-loose">
@@ -340,7 +324,7 @@ export default function Home() {
           </AnimatedSection>
 
           {/* Feature Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
             {FEATURES.map((feature, i) => {
               const Icon = feature.icon;
               return (
@@ -423,8 +407,8 @@ export default function Home() {
                   <div className="absolute inset-8 rounded-full border border-blue-400/20 animate-spin-slow" />
                   <div className="absolute inset-4 rounded-full border border-sky-400/10" style={{ animation: 'spin 15s linear infinite reverse' }} />
                   {/* Feature dots orbiting */}
-                  {[FileText, PenTool, Globe, Shield].map((Icon, i) => {
-                    const angle = (i * 90 * Math.PI) / 180;
+                  {[FileText, PenTool, Shield].map((Icon, i) => {
+                    const angle = (i * 120 * Math.PI) / 180;
                     const radius = 42;
                     const top = 50 - radius * Math.cos(angle);
                     const right = 50 - radius * Math.sin(angle);
@@ -576,7 +560,6 @@ export default function Home() {
                 {[
                   { label: 'تحلیل قرارداد فارسی', href: '/fa-analysis' },
                   { label: 'تحریر قرارداد', href: '/drafting' },
-                  { label: 'تحلیل قرارداد بین‌المللی', href: '/intl-analysis' },
                 ].map((link) => (
                   <li key={link.label}>
                     <button
