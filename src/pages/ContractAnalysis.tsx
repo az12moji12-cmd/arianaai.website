@@ -222,7 +222,20 @@ export default function ContractAnalysis() {
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) throw new Error(parsed.error);
-            if (parsed.text) {
+            if (parsed.docx) {
+              const binaryString = atob(parsed.docx);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${parsed.filename || 'گزارش-آریانا'}.docx`;
+              a.click();
+              URL.revokeObjectURL(url);
+            } else if (parsed.text) {
               accumulated += parsed.text;
               setMessages((prev) =>
                 prev.map((m) =>

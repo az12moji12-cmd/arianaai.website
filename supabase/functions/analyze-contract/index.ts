@@ -259,77 +259,7 @@ function buildUserContentBlocks(question: string, files: FileContent[]) {
   return blocks;
 }
 
-async function callClaudeForAnalysis(
-  apiKey: string,
-  question: string,
-  files: FileContent[],
-): Promise<ReportData> {
-  const contentBlocks = buildUserContentBlocks(question, files);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CLAUDE_REQUEST_TIMEOUT_MS);
-
-  let response: Response;
-  try {
-    response = await fetch(ANTHROPIC_API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL_NAME,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        system: FULL_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: contentBlocks,
-          },
-        ],
-      }),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new Error(
-        `پاسخ سرویس هوش مصنوعی کلود بیش از ${Math.round(CLAUDE_REQUEST_TIMEOUT_MS / 1000)} ثانیه طول کشید و درخواست لغو شد. برای اسناد حجیم، سند را کوتاه‌تر کنید یا CLAUDE_REQUEST_TIMEOUT_MS را افزایش دهید.`,
-      );
-    }
-    throw e;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(
-      `خطا در ارتباط با سرویس هوش مصنوعی کلود (کد ${response.status}): ${errText}`,
-    );
-  }
-
-  const data = await response.json();
-
-  if (data?.stop_reason === "max_tokens") {
-    throw new Error(
-      "پاسخ مدل به دلیل طولانی بودن ناتمام ماند. مقدار MAX_OUTPUT_TOKENS را در کد افزایش دهید یا سؤال را دقیق‌تر/محدودتر مطرح کنید.",
-    );
-  }
-
-  // deno-lint-ignore no-explicit-any
-  const rawText: string = (data?.content ?? [])
-    .filter((block: any) => block.type === "text")
-    .map((block: any) => block.text as string)
-    .join("\n")
-    .trim();
-
-  if (!rawText) {
-    throw new Error("پاسخ خالی از مدل هوش مصنوعی دریافت شد.");
-  }
-
-  return parseReportJson(rawText);
-}
 
 function parseReportJson(raw: string): ReportData {
   let cleaned = raw.trim();
@@ -1042,26 +972,107 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const report = await callClaudeForAnalysis(apiKey, body.question ?? "", body.fileContents);
-    const bodyElements = htmlToDocxElements(report.html);
-    const docxBytes = await generateDocxReport(report, bodyElements);
+    const contentBlocks = buildUserContentBlocks(body.question ?? "", body.fileContents);
+    const encoder = new TextEncoder();
 
-    const safeFileName = sanitizeFileName(report.reportTitle);
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const response = await fetch(ANTHROPIC_API_URL, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-api-key": apiKey,
+              "anthropic-version": "2023-06-01",
+            },
+            body: JSON.stringify({
+              model: MODEL_NAME,
+              max_tokens: MAX_OUTPUT_TOKENS,
+              stream: true,
+              system: FULL_SYSTEM_PROMPT,
+              messages: [{ role: "user", content: contentBlocks }],
+            }),
+          });
 
-    return new Response(docxBytes, {
+          if (!response.ok) {
+            const errText = await response.text();
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `خطا در ارتباط با کلود (کد ${response.status}): ${errText}` })}\n\n`));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          }
+
+          const reader = response.body?.getReader();
+          if (!reader) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "استریم در دسترس نیست" })}\n\n`));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          }
+
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let accumulatedText = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const data = line.slice(6).trim();
+              if (!data) continue;
+
+              try {
+                const event = JSON.parse(data);
+                if (event.type === "content_block_delta" && event.delta?.text) {
+                  accumulatedText += event.delta.text;
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
+                }
+              } catch {
+                // ignore non-JSON lines (e.g. event: ping)
+              }
+            }
+          }
+
+          const report = parseReportJson(accumulatedText);
+          const bodyElements = htmlToDocxElements(report.html);
+          const docxBytes = await generateDocxReport(report, bodyElements);
+
+          let binary = "";
+          for (let i = 0; i < docxBytes.length; i++) {
+            binary += String.fromCharCode(docxBytes[i]);
+          }
+          const base64Docx = btoa(binary);
+          const safeFileName = sanitizeFileName(report.reportTitle);
+
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ docx: base64Docx, filename: safeFileName })}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        } catch (err) {
+          console.error("خطا در پردازش درخواست تحلیل حقوقی:", err);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `خطا در تولید گزارش: ${err instanceof Error ? err.message : String(err)}` })}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
       status: 200,
       headers: {
         ...corsHeaders,
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition":
-          `attachment; filename="report.docx"; filename*=UTF-8''${encodeURIComponent(safeFileName)}.docx`,
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
       },
     });
   } catch (err) {
-    console.error("خطا در پردازش درخواست تحلیل حقوقی:", err);
-    return jsonError(
-      `خطا در تولید گزارش: ${err instanceof Error ? err.message : String(err)}`,
-      500,
-    );
+    console.error("خطا در پردازش درخواست:", err);
+    return jsonError(`خطا: ${err instanceof Error ? err.message : String(err)}`, 500);
   }
 });
