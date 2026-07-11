@@ -296,7 +296,7 @@ export default function Home() {
 
           {/* Description - internal team tone */}
           <p className="animate-fade-in delay-400 text-blue-100/80 text-base md:text-lg leading-loose max-w-2xl mx-auto mb-10">
-            سامانه اختصاصی دپارتمان حقوقی شرکت تونل سد آریانا برای تحلیل، تحریر و بررسی قراردادها با استفاده از هوش مصنوعی
+            سامانه اختصاصی دپارتمان حقوقی شرکت تونل سد آریانا برای تحلیل، تحریر و بررسی اسناد با استفاده از هوش مصنوعی
           </p>
 
           {/* CTA Buttons */}
