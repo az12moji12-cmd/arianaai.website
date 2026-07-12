@@ -1,3 +1,4 @@
+// @version 2026-07-12
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   Document,
