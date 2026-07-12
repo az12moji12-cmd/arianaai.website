@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   Document,
   Packer,
@@ -106,18 +106,26 @@ const HEADING1_SIZE = 34; // 17pt
 const HEADING2_SIZE = 28; // 14pt
 const HEADING3_SIZE = 24; // 12pt bold
 
-// ─── پالت رنگی آبی ملایم ──────────────────────────────────────────────
-// رنگ‌های اصلی — کنتراست کافی برای خوانایی متن فارسی دارند
-const C_PRIMARY   = "1B5693"; // آبی اصلی  (H1، عنوان شرکت، جدول‌هدر)
-const C_SECONDARY = "2574B0"; // آبی میانه (H2)
-const C_ACCENT    = "3A8DC5"; // آبی روشن  (H3، تأکید)
-const C_BODY      = "1A2535"; // متن اصلی  (تیره، بسیار خوانا)
-const C_MUTED     = "4A6E8E"; // متن فرعی  (زیرعنوان‌ها، برچسب‌ها)
-const C_LIGHT     = "7BA0BC"; // متن کم‌رنگ (یادداشت، پاورقی)
-const C_BG        = "EBF4FC"; // پس‌زمینه خیلی روشن
-const C_BG_ALT    = "F4F9FE"; // پس‌زمینه ردیف زوج جدول
-const C_BORDER    = "A8CCDF"; // حاشیه اصلی
-const C_BORDER_LT = "CCDFE9"; // حاشیه سبک
+// ─── پالت رنگی برند آریانا ────────────────────────────────────────────
+// Primary Brand Colors
+const C_PRIMARY    = "1E388C"; // آبی اصلی لوگو
+const C_PRIMARY_LT = "EAF0FB"; // پس‌زمینه آبی بسیار روشن
+const C_PRIMARY_MD = "4F6FB2"; // آبی متوسط
+
+// Table Colors
+const C_BG_ALT    = "F7FAFE"; // ردیف‌های زوج
+const C_BORDER    = "AFC4E6"; // حاشیه اصلی
+const C_BORDER_LT = "DCE7F5"; // حاشیه داخلی
+
+// Text
+const C_TEXT       = "1F2937"; // متن اصلی
+const C_TEXT_LIGHT = "6B7280"; // متن فرعی
+
+// Risk Colors
+const C_CRITICAL = "B91C1C";
+const C_HIGH     = "DC2626";
+const C_MEDIUM   = "D97706";
+const C_LOW      = "15803D";
 // ──────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIDENTIALITY =
@@ -409,10 +417,10 @@ function parseReportJson(raw: string): ReportData {
 // ═══════════════════════════════════════════════════════════════════════
 function severityShadingFor(text: string): { fill: string; textColor: string } | undefined {
   switch (text.trim()) {
-    case "بحرانی": return { fill: "B03030", textColor: "FFFFFF" };
-    case "زیاد":   return { fill: "C96A20", textColor: "FFFFFF" };
-    case "متوسط":  return { fill: "B08A10", textColor: "FFFFFF" };
-    case "کم":     return { fill: "2A8050", textColor: "FFFFFF" };
+    case "بحرانی": return { fill: C_CRITICAL, textColor: "FFFFFF" };
+    case "زیاد":   return { fill: C_HIGH,     textColor: "FFFFFF" };
+    case "متوسط":  return { fill: C_MEDIUM,   textColor: "FFFFFF" };
+    case "کم":     return { fill: C_LOW,      textColor: "FFFFFF" };
     default:       return undefined;
   }
 }
@@ -477,14 +485,14 @@ function buildList(listEl: any, ordered: boolean, level: number): Paragraph[] {
       if (dc.nodeType === 3) {
         const text = String(dc.textContent || "").replace(/[\r\n\t]+/g, " ");
         if (text.trim().length > 0) {
-          runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_BODY }));
+          runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT }));
         }
       } else if (dc.nodeType === 1) {
-        runs.push(...textRunsFromInline({ childNodes: [dc] }, false, false, C_BODY));
+        runs.push(...textRunsFromInline({ childNodes: [dc] }, false, false, C_TEXT));
       }
     }
     if (runs.length === 0) {
-      runs.push(new TextRun({ text: "", font: BODY_FONT, size: BODY_SIZE, color: C_BODY }));
+      runs.push(new TextRun({ text: "", font: BODY_FONT, size: BODY_SIZE, color: C_TEXT }));
     }
 
     result.push(
@@ -554,7 +562,7 @@ function buildTable(tableEl: any): Table {
             font: BODY_FONT,
             size: BODY_SIZE,
             bold: isHeaderRow,
-            ...(textColor ? { color: textColor } : { color: C_BODY }),
+            ...(textColor ? { color: textColor } : { color: C_TEXT }),
           }),
         ];
       }
@@ -584,7 +592,7 @@ function buildTable(tableEl: any): Table {
         children: [
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "بدون داده", font: BODY_FONT, size: BODY_SIZE, color: C_MUTED })],
+              children: [new TextRun({ text: "بدون داده", font: BODY_FONT, size: BODY_SIZE, color: C_TEXT_LIGHT })],
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
             })],
@@ -620,7 +628,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
         alignment: AlignmentType.RIGHT,
         bidirectional: true,
         spacing: { line: 340, after: 140 },
-        children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_BODY })],
+        children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT })],
       }),
     ];
   }
@@ -645,7 +653,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
           heading: HeadingLevel.HEADING_2,
           alignment: AlignmentType.RIGHT,
           bidirectional: true,
-          children: textRunsFromInline(node, false, false, C_SECONDARY),
+          children: textRunsFromInline(node, false, false, C_PRIMARY_MD),
         }),
       ];
     case "h3":
@@ -655,11 +663,11 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
           heading: HeadingLevel.HEADING_3,
           alignment: AlignmentType.RIGHT,
           bidirectional: true,
-          children: textRunsFromInline(node, false, false, C_ACCENT),
+          children: textRunsFromInline(node, false, false, C_PRIMARY_MD),
         }),
       ];
     case "p": {
-      const runs = textRunsFromInline(node, false, false, C_BODY);
+      const runs = textRunsFromInline(node, false, false, C_TEXT);
       if (runs.length === 0) return [];
       return [
         new Paragraph({
@@ -702,7 +710,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       return out;
     }
     default: {
-      const runs = textRunsFromInline(node, false, false, C_BODY);
+      const runs = textRunsFromInline(node, false, false, C_TEXT);
       if (runs.length === 0) return [];
       return [new Paragraph({
         alignment: AlignmentType.RIGHT,
@@ -764,7 +772,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
         // ستون برچسب (راست)
         new TableCell({
           width: { size: 32, type: WidthType.PERCENTAGE },
-          shading: { type: ShadingType.SOLID, fill: C_BG, color: "auto" },
+          shading: { type: ShadingType.SOLID, fill: C_PRIMARY_LT, color: "auto" },
           verticalAlign: VerticalAlign.CENTER,
           margins: { top: 120, bottom: 120, left: 180, right: 180 },
           children: [
@@ -787,7 +795,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
-              children: [new TextRun({ text: value, font: BODY_FONT, size: 22, color: C_BODY })],
+              children: [new TextRun({ text: value, font: BODY_FONT, size: 22, color: C_TEXT })],
             }),
           ],
         }),
@@ -828,13 +836,13 @@ function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
       alignment: AlignmentType.CENTER,
       bidirectional: true,
       spacing: { after: 160 },
-      children: [new TextRun({ text: COMPANY_SUBTITLE, font: BODY_FONT, size: 22, color: C_MUTED })],
+      children: [new TextRun({ text: COMPANY_SUBTITLE, font: BODY_FONT, size: 22, color: C_TEXT_LIGHT })],
     }),
 
     // خط جداکننده
     new Paragraph({
       spacing: { after: 800 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: C_SECONDARY, space: 1 } },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: C_PRIMARY_MD, space: 1 } },
       children: [],
     }),
 
@@ -851,7 +859,7 @@ function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
       alignment: AlignmentType.CENTER,
       bidirectional: true,
       spacing: { after: 1000 },
-      children: [new TextRun({ text: report.reportTitle, font: HEADING_FONT, size: 28, bold: true, color: C_SECONDARY })],
+      children: [new TextRun({ text: report.reportTitle, font: HEADING_FONT, size: 28, bold: true, color: C_PRIMARY_MD })],
     }),
 
     // جدول اطلاعات سند
@@ -875,7 +883,7 @@ function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
           font: BODY_FONT,
           size: 18,
           italics: true,
-          color: C_LIGHT,
+          color: C_TEXT_LIGHT,
         }),
       ],
     }),
@@ -900,7 +908,7 @@ function buildTocIntro(): Array<Paragraph | TableOfContents> {
           font: BODY_FONT,
           size: 18,
           italics: true,
-          color: C_LIGHT,
+          color: C_TEXT_LIGHT,
         }),
       ],
     }),
@@ -916,9 +924,9 @@ function buildHeader(report: ReportData): Header {
       new Paragraph({
         alignment: AlignmentType.RIGHT,
         bidirectional: true,
-        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C_SECONDARY, space: 4 } },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C_PRIMARY_MD, space: 4 } },
         children: [
-          new TextRun({ text: `${COMPANY_NAME} — ${shortTitle}`, font: BODY_FONT, size: 16, color: C_MUTED }),
+          new TextRun({ text: `${COMPANY_NAME} — ${shortTitle}`, font: BODY_FONT, size: 16, color: C_TEXT_LIGHT }),
         ],
       }),
     ],
@@ -935,7 +943,7 @@ function buildFooter(): Footer {
           new TextRun({
             font: BODY_FONT,
             size: 16,
-            color: C_LIGHT,
+            color: C_TEXT_LIGHT,
             children: ["صفحه ", PageNumber.CURRENT, " از ", PageNumber.TOTAL_PAGES],
           }),
         ],
@@ -1010,7 +1018,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
     styles: {
       default: {
         document: {
-          run: { font: BODY_FONT, size: BODY_SIZE, color: C_BODY },
+          run: { font: BODY_FONT, size: BODY_SIZE, color: C_TEXT },
           paragraph: { alignment: AlignmentType.RIGHT, bidirectional: true, spacing: { line: 360, after: 180 } },
         },
       },
@@ -1027,7 +1035,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
             bidirectional: true,
             spacing: { before: 520, after: 260 },
             outlineLevel: 0,
-            border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: C_SECONDARY, space: 4 } },
+            border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: C_PRIMARY_MD, space: 4 } },
           },
         },
         {
@@ -1036,7 +1044,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
           basedOn: "Normal",
           next: "Normal",
           quickFormat: true,
-          run: { font: HEADING_FONT, size: HEADING2_SIZE, bold: true, color: C_SECONDARY },
+          run: { font: HEADING_FONT, size: HEADING2_SIZE, bold: true, color: C_PRIMARY_MD },
           paragraph: {
             alignment: AlignmentType.RIGHT,
             bidirectional: true,
@@ -1050,7 +1058,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
           basedOn: "Normal",
           next: "Normal",
           quickFormat: true,
-          run: { font: HEADING_FONT, size: HEADING3_SIZE, bold: true, color: C_ACCENT },
+          run: { font: HEADING_FONT, size: HEADING3_SIZE, bold: true, color: C_PRIMARY_MD },
           paragraph: {
             alignment: AlignmentType.RIGHT,
             bidirectional: true,
