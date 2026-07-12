@@ -1,19 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import {
   Send,
-  Upload,
   X,
   FileText,
   Loader,
   Plus,
   Menu,
-  Copy,
   Download,
-  Trash2,
   MessageCircle,
   Settings,
+  Paperclip,
+  Sparkles,
+  Scale,
+  BarChart3,
+  ClipboardList,
+  PenLine,
 } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 
 interface Message {
@@ -24,6 +27,7 @@ interface Message {
   timestamp: string;
   docxUrl?: string;
   docxFilename?: string;
+  isError?: boolean;
 }
 
 interface UploadedFile {
@@ -36,9 +40,31 @@ interface UploadedFile {
   media_type: string;
 }
 
+const PRESET_PROMPTS = [
+  {
+    label: 'تحلیل جامع سند',
+    icon: Scale,
+    text: 'لطفاً یک تحلیل جامع و کامل از این سند ارائه دهید.',
+  },
+  {
+    label: 'تحلیل ریسک‌های حقوقی',
+    icon: BarChart3,
+    text: 'ریسک‌های حقوقی موجود در این سند را شناسایی، اولویت‌بندی و تحلیل کنید.',
+  },
+  {
+    label: 'تهیه گزارش مدیریتی',
+    icon: ClipboardList,
+    text: 'یک گزارش مدیریتی از این سند برای مدیران ارشد شرکت تهیه کنید.',
+  },
+  {
+    label: 'تحلیل سفارشی',
+    icon: PenLine,
+    text: null, // null = open custom text input
+  },
+];
+
 export default function ContractAnalysis() {
   const navigate = useNavigate();
-  const { conversationId } = useParams();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -46,14 +72,17 @@ export default function ContractAnalysis() {
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState<Array<{ id: string; title: string; timestamp: string }>>([]);
+  const [customMode, setCustomMode] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isStreamingRef = useRef(false);
-  const lastMessageCountRef = useRef(0);
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string>(() => Date.now().toString());
+
+  const showPresets = uploadedFiles.length > 0 && !loading && !customMode && question === '';
 
   const handleLogoClick = () => {
     if (loading) return;
@@ -65,25 +94,13 @@ export default function ContractAnalysis() {
   };
 
   useEffect(() => {
-    const newMessageAdded = messages.length > lastMessageCountRef.current;
-    lastMessageCountRef.current = messages.length;
-
-    if (newMessageAdded) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else if (isStreamingRef.current) {
-      const container = scrollContainerRef.current;
-      if (container) {
-        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-        if (distanceFromBottom < 200) {
-          container.scrollTop = container.scrollHeight;
-        }
-      }
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const startNewConversation = () => {
     if (messages.length > 0) {
-      const title = messages[0]?.files?.[0]?.name || messages[0]?.content?.slice(0, 30) || 'مکالمه جدید';
+      const title =
+        messages[0]?.files?.[0]?.name || messages[0]?.content?.slice(0, 30) || 'مکالمه جدید';
       setConversations((prev) => [
         { id: currentConversationId, title, timestamp: new Date().toLocaleString('fa-IR') },
         ...prev,
@@ -93,19 +110,21 @@ export default function ContractAnalysis() {
     setMessages([]);
     setUploadedFiles([]);
     setQuestion('');
+    setCustomMode(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    files.forEach(async (file) => {
+    for (const file of files) {
       const ext = file.name.split('.').pop()?.toLowerCase();
       const arrayBuffer = await file.arrayBuffer();
 
+      let newFile: UploadedFile;
       if (ext === 'pdf') {
         const base64 = btoa(
           new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
         );
-        const newFile: UploadedFile = {
+        newFile = {
           id: Date.now().toString() + Math.random().toString(36),
           name: file.name,
           size: file.size,
@@ -114,10 +133,9 @@ export default function ContractAnalysis() {
           encoding: 'base64',
           media_type: 'application/pdf',
         };
-        setUploadedFiles((prev) => [...prev, newFile]);
       } else if (ext === 'docx' || ext === 'doc') {
         const result = await mammoth.extractRawText({ arrayBuffer });
-        const newFile: UploadedFile = {
+        newFile = {
           id: Date.now().toString() + Math.random().toString(36),
           name: file.name,
           size: file.size,
@@ -126,10 +144,9 @@ export default function ContractAnalysis() {
           encoding: 'text',
           media_type: 'text/plain',
         };
-        setUploadedFiles((prev) => [...prev, newFile]);
       } else {
         const textContent = await file.text();
-        const newFile: UploadedFile = {
+        newFile = {
           id: Date.now().toString() + Math.random().toString(36),
           name: file.name,
           size: file.size,
@@ -138,31 +155,53 @@ export default function ContractAnalysis() {
           encoding: 'text',
           media_type: 'text/plain',
         };
-        setUploadedFiles((prev) => [...prev, newFile]);
       }
-    });
+      setUploadedFiles((prev) => [...prev, newFile]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setCustomMode(false);
+    setQuestion('');
   };
 
   const removeFile = (fileId: string) => {
     setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setCustomMode(false);
+    setQuestion('');
   };
 
-  const handleSendMessage = async () => {
-    if (!question.trim() || uploadedFiles.length === 0 || loading) return;
+  const handlePresetSelect = (prompt: (typeof PRESET_PROMPTS)[0]) => {
+    if (prompt.text === null) {
+      setCustomMode(true);
+      setQuestion('');
+      setTimeout(() => textInputRef.current?.focus(), 50);
+    } else {
+      sendMessage(prompt.text);
+    }
+  };
+
+  const handleSendMessage = () => {
+    const text = question.trim();
+    if (!text || uploadedFiles.length === 0 || loading) return;
+    sendMessage(text);
+  };
+
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || uploadedFiles.length === 0 || loading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: question,
+      content: text,
       files: uploadedFiles.map((f) => ({ name: f.name, size: f.size })),
       timestamp: new Date().toLocaleString('fa-IR'),
     };
 
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    setMessages((prev) => [...prev, userMessage]);
     setQuestion('');
+    setCustomMode(false);
     setLoading(true);
-    isStreamingRef.current = true;
+
+    const assistantMessageId = (Date.now() + 1).toString();
 
     try {
       const fileContents = uploadedFiles.map((f) => ({
@@ -172,15 +211,6 @@ export default function ContractAnalysis() {
         media_type: f.media_type,
       }));
 
-      const assistantMessageId = (Date.now() + 1).toString();
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date().toLocaleString('fa-IR'),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-contract`,
         {
@@ -189,10 +219,7 @@ export default function ContractAnalysis() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({
-            question,
-            fileContents,
-          }),
+          body: JSON.stringify({ question: text, fileContents }),
         }
       );
 
@@ -205,8 +232,8 @@ export default function ContractAnalysis() {
       if (!reader) throw new Error('استریم در دسترس نیست');
 
       const decoder = new TextDecoder();
-      let accumulated = '';
       let buffer = '';
+      let docxReceived = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -223,58 +250,66 @@ export default function ContractAnalysis() {
 
           try {
             const parsed = JSON.parse(data);
+
             if (parsed.error) throw new Error(parsed.error);
+
             if (parsed.docx) {
+              docxReceived = true;
               const binaryString = atob(parsed.docx);
               const bytes = new Uint8Array(binaryString.length);
               for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
               }
-              const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+              const blob = new Blob([bytes], {
+                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              });
               const url = URL.createObjectURL(blob);
               const filename = parsed.filename || 'گزارش-آریانا';
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMessageId
-                    ? { ...m, content: 'گزارش حقوقی آماده است.', docxUrl: url, docxFilename: filename }
-                    : m
-                )
-              );
-            } else if (parsed.text) {
-              accumulated += parsed.text;
+
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: assistantMessageId,
+                  role: 'assistant',
+                  content: '',
+                  docxUrl: url,
+                  docxFilename: filename,
+                  timestamp: new Date().toLocaleString('fa-IR'),
+                },
+              ]);
             }
+            // heartbeat events ({ text: "" }) are intentionally ignored
           } catch (e) {
             if (e instanceof Error && e.message !== data) throw e;
           }
         }
       }
 
-      if (!accumulated) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessageId && !m.docxUrl
-              ? { ...m, content: 'پاسخی دریافت نشد. لطفاً دوباره تلاش کنید.' }
-              : m
-          )
-        );
+      if (!docxReceived) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: assistantMessageId,
+            role: 'assistant',
+            content: 'پاسخی دریافت نشد. لطفاً دوباره تلاش کنید.',
+            timestamp: new Date().toLocaleString('fa-IR'),
+            isError: true,
+          },
+        ]);
       }
     } catch (error) {
       console.error('Error:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'متأسفانه در انجام تحلیل خطایی رخ داد. لطفاً دوباره تلاش کنید.',
-        timestamp: new Date().toLocaleString('fa-IR'),
-      };
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'assistant' && last.content === '') {
-          return [...prev.slice(0, -1), errorMessage];
-        }
-        return [...prev, errorMessage];
-      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: `متأسفانه در انجام تحلیل خطایی رخ داد: ${error instanceof Error ? error.message : 'خطای ناشناخته'}`,
+          timestamp: new Date().toLocaleString('fa-IR'),
+          isError: true,
+        },
+      ]);
     } finally {
-      isStreamingRef.current = false;
       setLoading(false);
     }
   };
@@ -285,7 +320,7 @@ export default function ContractAnalysis() {
       <div
         className={`${
           sidebarOpen ? 'w-64' : 'w-0'
-        } transition-all duration-300 bg-navy-950 text-white flex flex-col overflow-hidden`}
+        } transition-all duration-300 bg-navy-950 text-white flex flex-col overflow-hidden flex-shrink-0`}
       >
         <div className="p-4 border-b border-white/10">
           <button
@@ -329,9 +364,9 @@ export default function ContractAnalysis() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
-        <div className="border-b border-gray-200 bg-white px-6 py-4 flex items-center justify-between">
+        <div className="border-b border-gray-100 bg-white px-4 md:px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -339,15 +374,20 @@ export default function ContractAnalysis() {
             >
               <Menu size={20} className="text-navy-700" />
             </button>
-            <div>
-              <h1 className="text-lg font-bold text-navy-900">تحلیلگر تیدا </h1>
-              <p className="text-xs text-navy-500">دستیار حقوقی آریانا</p>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-navy-700 to-navy-500 flex items-center justify-center flex-shrink-0">
+                <Scale size={16} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-navy-900 leading-tight">تحلیلگر تیدا</h1>
+                <p className="text-xs text-navy-400">دستیار حقوقی آریانا</p>
+              </div>
             </div>
           </div>
           <button
             onClick={handleLogoClick}
             disabled={loading}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity disabled:pointer-events-none disabled:opacity-40"
+            className="hover:opacity-80 transition-opacity disabled:pointer-events-none disabled:opacity-40"
             title="بازگشت به صفحه اول"
           >
             <img
@@ -359,16 +399,23 @@ export default function ContractAnalysis() {
         </div>
 
         {/* Messages Area */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 bg-gradient-to-b from-gray-50 to-white">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-4 md:px-12 lg:px-24 py-6 space-y-5 bg-gray-50"
+        >
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-navy-100 to-sky-100 rounded-2xl flex items-center justify-center mb-4">
-                <FileText size={32} className="text-navy-600" />
+            <div className="flex flex-col items-center justify-center h-full text-center pt-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-navy-700 to-navy-500 rounded-3xl flex items-center justify-center mb-5 shadow-lg">
+                <Scale size={36} className="text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-navy-900 mb-2">شروع تحلیل </h2>
-              <p className="text-navy-500 max-w-md">
-                فایل قرارداد خود را آپلود کنید و سؤالات حقوقی را مطرح کنید. دستیار آریانا تحلیل جامع حقوقی ارائه می‌دهد.
+              <h2 className="text-2xl font-bold text-navy-900 mb-2">تحلیلگر تیدا</h2>
+              <p className="text-navy-400 max-w-sm text-sm leading-relaxed">
+                فایل سند حقوقی را آپلود کنید و نوع تحلیل مورد نظر را انتخاب کنید.
               </p>
+              <div className="mt-6 flex items-center gap-2 text-xs text-navy-300">
+                <Paperclip size={14} />
+                <span>پشتیبانی از فرمت‌های PDF، DOCX و TXT</span>
+              </div>
             </div>
           )}
 
@@ -377,81 +424,81 @@ export default function ContractAnalysis() {
               key={msg.id}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div
-                className={`max-w-2xl ${
-                  msg.role === 'user'
-                    ? 'bg-navy-600 text-white rounded-2xl rounded-tr-none'
-                    : 'bg-white border border-gray-200 text-navy-900 rounded-2xl rounded-tl-none shadow-sm'
-                } px-5 py-4`}
-              >
-                {msg.role === 'user' ? (
-                  <div>
-                    <p className="text-sm leading-relaxed mb-2">{msg.content}</p>
+              {msg.role === 'user' ? (
+                <div className="max-w-[80%] md:max-w-lg">
+                  <div className="bg-navy-700 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
+                    <p className="text-sm leading-relaxed">{msg.content}</p>
                     {msg.files && msg.files.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-white/20 space-y-1">
+                      <div className="mt-2 pt-2 border-t border-white/20 flex flex-wrap gap-2">
                         {msg.files.map((f, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs text-blue-100">
-                            <FileText size={12} />
-                            <span>{f.name}</span>
+                          <div key={i} className="flex items-center gap-1.5 text-xs text-blue-100 bg-white/10 rounded-lg px-2 py-1">
+                            <FileText size={11} />
+                            <span className="truncate max-w-[160px]">{f.name}</span>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-                ) : msg.docxUrl ? (
-                  <div className="flex items-center gap-4 py-1">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
-                        <FileText size={20} className="text-white" />
+                  <p className="text-xs text-navy-300 mt-1 text-left">{msg.timestamp}</p>
+                </div>
+              ) : msg.docxUrl ? (
+                <div className="max-w-[80%] md:max-w-md">
+                  <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-l from-navy-700 to-navy-600 px-4 py-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <FileText size={18} className="text-white" />
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-navy-900">{msg.docxFilename}.docx</p>
-                        <p className="text-xs text-navy-500">گزارش Word آماده دانلود</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">
+                          {msg.docxFilename}.docx
+                        </p>
+                        <p className="text-xs text-blue-200">گزارش حقوقی Word</p>
                       </div>
                     </div>
-                    <a
-                      href={msg.docxUrl}
-                      download={`${msg.docxFilename}.docx`}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-navy-600 hover:bg-navy-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                    >
-                      <Download size={14} />
-                      دانلود
-                    </a>
-                  </div>
-                ) : msg.content ? (
-                  <div>
-                    <div className="prose prose-sm max-w-none">
-                      <div
-                        className="text-sm leading-relaxed whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{
-                          __html: msg.content
-                            .replace(/^#{1,3}\s+/gm, '<strong>$&</strong>')
-                            .replace(/\n/g, '<br />'),
-                        }}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
-                      <button
-                        onClick={() => navigator.clipboard.writeText(msg.content)}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="کپی متن"
+                    <div className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs text-navy-500">
+                        <Sparkles size={13} className="text-amber-500" />
+                        <span>گزارش آماده دانلود است</span>
+                      </div>
+                      <a
+                        href={msg.docxUrl}
+                        download={`${msg.docxFilename}.docx`}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold rounded-xl transition-colors flex-shrink-0 shadow-sm"
                       >
-                        <Copy size={14} className="text-navy-400" />
-                      </button>
+                        <Download size={13} />
+                        دانلود
+                      </a>
                     </div>
                   </div>
-                ) : null}
-                <p className="text-xs opacity-60 mt-2">{msg.timestamp}</p>
-              </div>
+                  <p className="text-xs text-navy-300 mt-1">{msg.timestamp}</p>
+                </div>
+              ) : msg.content ? (
+                <div className="max-w-[80%] md:max-w-md">
+                  <div
+                    className={`rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm ${
+                      msg.isError
+                        ? 'bg-red-50 border border-red-200 text-red-700'
+                        : 'bg-white border border-gray-200 text-navy-800'
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                  </div>
+                  <p className="text-xs text-navy-300 mt-1">{msg.timestamp}</p>
+                </div>
+              ) : null}
             </div>
           ))}
 
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Loader size={16} className="text-navy-600 animate-spin" />
-                  <p className="text-sm text-navy-600">در حال تحلیل ...</p>
+              <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full bg-navy-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-navy-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-navy-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <p className="text-xs text-navy-500">در حال تحلیل سند — این فرآیند ممکن است چند دقیقه طول بکشد</p>
                 </div>
               </div>
             </div>
@@ -461,72 +508,123 @@ export default function ContractAnalysis() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-gray-200 bg-white p-4 md:p-6">
-          {uploadedFiles.length > 0 && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-              <p className="text-xs font-semibold text-blue-900 mb-2">فایل‌های آپلود شده:</p>
+        <div className="border-t border-gray-100 bg-white px-4 md:px-12 lg:px-24 py-4 flex-shrink-0">
+          {showPresets && (
+            <div className="mb-3">
+              <p className="text-xs text-navy-400 mb-2 flex items-center gap-1.5">
+                <Sparkles size={12} className="text-amber-500" />
+                نوع تحلیل را انتخاب کنید:
+              </p>
               <div className="flex flex-wrap gap-2">
-                {uploadedFiles.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2"
-                  >
-                    <FileText size={14} className="text-blue-600" />
-                    <span className="text-xs text-blue-900 truncate max-w-xs">{file.name}</span>
+                {PRESET_PROMPTS.map((prompt) => {
+                  const Icon = prompt.icon;
+                  return (
                     <button
-                      onClick={() => removeFile(file.id)}
-                      className="p-0.5 hover:bg-blue-100 rounded transition-colors"
+                      key={prompt.label}
+                      onClick={() => handlePresetSelect(prompt)}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 text-xs font-medium rounded-xl transition-all shadow-sm"
                     >
-                      <X size={14} className="text-blue-600" />
+                      <Icon size={13} className="text-navy-500" />
+                      {prompt.label}
                     </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          <div className="flex gap-3">
-            <div className="flex-1 flex gap-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                multiple
-                accept=".txt,.pdf,.doc,.docx"
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-shrink-0 p-3 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
-                title="آپلود فایل"
-              >
-                <Upload size={18} className="text-navy-600" />
-              </button>
-              <input
-                type="text"
+          {uploadedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {uploadedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="flex items-center gap-1.5 bg-navy-50 border border-navy-200 rounded-lg px-2.5 py-1.5 text-xs text-navy-700"
+                >
+                  <FileText size={12} className="text-navy-500 flex-shrink-0" />
+                  <span className="truncate max-w-[140px] md:max-w-xs">{file.name}</span>
+                  {!loading && (
+                    <button
+                      onClick={() => removeFile(file.id)}
+                      className="p-0.5 hover:bg-navy-200 rounded transition-colors flex-shrink-0"
+                      title="حذف فایل"
+                    >
+                      <X size={11} className="text-navy-500" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-end gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              multiple
+              accept=".txt,.pdf,.doc,.docx"
+              className="hidden"
+            />
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="flex-shrink-0 w-10 h-10 flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="آپلود فایل"
+            >
+              <Paperclip size={18} className="text-navy-600" />
+            </button>
+
+            <div className="flex-1 relative">
+              <textarea
+                ref={textInputRef}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="سؤال خود را بنویسید..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-transparent text-base"
-                style={{ fontSize: '16px' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder={
+                  uploadedFiles.length === 0
+                    ? 'ابتدا فایل سند خود را آپلود کنید...'
+                    : customMode
+                    ? 'درخواست تحلیل سفارشی خود را بنویسید...'
+                    : 'فایل آپلود شد — نوع تحلیل را از گزینه‌های بالا انتخاب کنید'
+                }
+                disabled={loading || (uploadedFiles.length > 0 && !customMode)}
+                rows={1}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-navy-400 focus:border-transparent text-sm resize-none bg-white disabled:bg-gray-50 disabled:text-navy-300 disabled:cursor-default transition-colors"
+                style={{ fontSize: '16px', minHeight: '42px', maxHeight: '120px' }}
               />
             </div>
+
             <button
               onClick={handleSendMessage}
               disabled={loading || !question.trim() || uploadedFiles.length === 0}
-              className="flex-shrink-0 p-3 bg-navy-600 hover:bg-navy-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-navy-700 hover:bg-navy-800 text-white rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+              title="ارسال"
             >
-              <Send size={18} />
+              {loading ? (
+                <Loader size={16} className="animate-spin" />
+              ) : (
+                <Send size={16} />
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Exit confirmation modal */}
       {showExitConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowExitConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowExitConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-bold text-navy-900 mb-2 text-center">خروج از مکالمه</h3>
             <p className="text-sm text-navy-500 text-center mb-6 leading-relaxed">
               مکالمه جاری ذخیره نخواهد شد. آیا مطمئن هستید؟
@@ -534,7 +632,7 @@ export default function ContractAnalysis() {
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowExitConfirm(false); navigate('/'); }}
-                className="flex-1 py-2.5 bg-navy-600 hover:bg-navy-700 text-white rounded-xl text-sm font-semibold transition-colors"
+                className="flex-1 py-2.5 bg-navy-700 hover:bg-navy-800 text-white rounded-xl text-sm font-semibold transition-colors"
               >
                 بله، خروج
               </button>
