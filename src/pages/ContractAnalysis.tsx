@@ -508,7 +508,7 @@ export default function ContractAnalysis() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-gray-100 bg-white px-4 md:px-12 lg:px-24 py-4 flex-shrink-0">
+        <div className="border-t border-gray-100 bg-white px-4 md:px-12 lg:px-24 py-4 pb-10 flex-shrink-0">
           {showPresets && (
             <div className="mb-3">
               <p className="text-xs text-navy-400 mb-2 flex items-center gap-1.5">
