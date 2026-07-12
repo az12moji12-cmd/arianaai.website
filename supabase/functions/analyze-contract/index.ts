@@ -24,6 +24,7 @@ import {
   convertInchesToTwip,
 } from "npm:docx@9";
 import { DOMParser } from "jsr:@b-fuze/deno-dom";
+import { encodeBase64 } from "jsr:@std/encoding/base64";
 
 // ═══════════════════════════════════════════════════════════════════════
 // معماری کلی این فایل
@@ -37,7 +38,20 @@ import { DOMParser } from "jsr:@b-fuze/deno-dom";
 //    کتابخانه docx (Paragraph / Table / Heading و ...) تبدیل می‌گردد.
 // ۵. یک فایل Word رسمی با صفحه جلد، فهرست مطالب (TOC واقعی Word)،
 //    سربرگ، پاورقی با شماره صفحه، جدول‌بندی و فونت‌های فارسی B Titr / B Lotus
-//    ساخته و مستقیماً (به صورت باینری) به کاربر بازگردانده می‌شود.
+//    ساخته می‌شود.
+//
+// نکته مهم دربارهٔ نحوه ارسال پاسخ (Server-Sent Events):
+// از آنجا که تحلیل توسط claude-opus-4-8 روی اسناد حقوقی می‌تواند از حد
+// معمول (چند ده ثانیه تا چند دقیقه) طول بکشد و بسیاری از پلتفرم‌های
+// میزبانی Edge Function در صورت عدم دریافت هیچ داده‌ای از سرور در یک بازه
+// زمانی مشخص، اتصال را با خطا قطع می‌کنند، این تابع پاسخ را به‌صورت یک
+// جریان متنی (ReadableStream با فرمت text/event-stream) برمی‌گرداند:
+//   - در حین انتظار برای پاسخ Claude، هر چند ثانیه یک بستهٔ کوچک «ضربان
+//     قلب» (heartbeat) به کلاینت فرستاده می‌شود تا اتصال زنده بماند.
+//   - در پایان، یک بستهٔ نهایی حاوی فایل Word به‌صورت base64 و نام فایل
+//     فرستاده می‌شود.
+// فرانت‌اند این بسته‌های heartbeat را به کاربر نمایش نمی‌دهد؛ فقط منتظر
+// می‌ماند تا بستهٔ نهایی حاوی فایل برسد.
 //
 // نکته مهم دربارهٔ فونت‌ها: کتابخانه docx فونت را «ارجاع» می‌دهد نه «جاسازی».
 // یعنی فایل خروجی از فونت‌های B Titr و B Lotus استفاده می‌کند، اما این دو
@@ -69,11 +83,16 @@ const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 // عدد را کاهش دهید یا معماری را به حالت صف/استریم تغییر دهید.
 const MAX_OUTPUT_TOKENS = 16000;
 
-// حداکثر زمان انتظار برای پاسخ Claude (میلی‌ثانیه). اگر Edge Function شما
-// سقف زمانی کوتاه‌تری دارد، این عدد را متناسب با آن کاهش دهید تا به‌جای
-// قطع ناگهانی و بی‌پیام توسط پلتفرم، یک خطای فارسی روشن به کاربر نمایش
-// داده شود.
-const CLAUDE_REQUEST_TIMEOUT_MS = 280_000;
+// این تایم‌اوت دیگر مسئول اصلی جلوگیری از خطای تایم‌اوت پلتفرم نیست (آن
+// نقش را heartbeat جریان SSE بر عهده دارد)؛ این فقط یک «شبکهٔ ایمنی» است
+// تا اگر ارتباط با Claude به هر دلیلی برای همیشه معلق بماند، درخواست پس
+// از این مدت با یک پیام خطای روشن به پایان برسد.
+const CLAUDE_REQUEST_TIMEOUT_MS = 600_000; // ۱۰ دقیقه
+
+// فاصلهٔ زمانی ارسال بستهٔ «ضربان قلب» به کلاینت در حین انتظار برای پاسخ
+// Claude (میلی‌ثانیه). این عدد باید به‌وضوح کوتاه‌تر از سقف تایم‌اوت
+// idle پلتفرم میزبانی شما باشد. عدد پیش‌فرض برای اغلب پلتفرم‌ها امن است.
+const HEARTBEAT_INTERVAL_MS = 12_000;
 
 // حداکثر حجم مجاز کل فایل‌های ارسالی (برای جلوگیری از خطای غیرضروری در
 // سمت Anthropic API و جلوگیری از تایم‌اوت). عدد بر حسب مگابایت (تخمینی
@@ -259,7 +278,77 @@ function buildUserContentBlocks(question: string, files: FileContent[]) {
   return blocks;
 }
 
+async function callClaudeForAnalysis(
+  apiKey: string,
+  question: string,
+  files: FileContent[],
+): Promise<ReportData> {
+  const contentBlocks = buildUserContentBlocks(question, files);
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CLAUDE_REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(ANTHROPIC_API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system: FULL_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: contentBlocks,
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error(
+        `پاسخ سرویس هوش مصنوعی کلود بیش از ${Math.round(CLAUDE_REQUEST_TIMEOUT_MS / 60000)} دقیقه طول کشید و به‌عنوان اقدام ایمنی درخواست لغو شد. اگر این خطا مکرراً رخ می‌دهد، سند را کوتاه‌تر کنید یا CLAUDE_REQUEST_TIMEOUT_MS را افزایش دهید.`,
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(
+      `خطا در ارتباط با سرویس هوش مصنوعی کلود (کد ${response.status}): ${errText}`,
+    );
+  }
+
+  const data = await response.json();
+
+  if (data?.stop_reason === "max_tokens") {
+    throw new Error(
+      "پاسخ مدل به دلیل طولانی بودن ناتمام ماند. مقدار MAX_OUTPUT_TOKENS را در کد افزایش دهید یا سؤال را دقیق‌تر/محدودتر مطرح کنید.",
+    );
+  }
+
+  // deno-lint-ignore no-explicit-any
+  const rawText: string = (data?.content ?? [])
+    .filter((block: any) => block.type === "text")
+    .map((block: any) => block.text as string)
+    .join("\n")
+    .trim();
+
+  if (!rawText) {
+    throw new Error("پاسخ خالی از مدل هوش مصنوعی دریافت شد.");
+  }
+
+  return parseReportJson(rawText);
+}
 
 function parseReportJson(raw: string): ReportData {
   let cleaned = raw.trim();
@@ -972,93 +1061,61 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const contentBlocks = buildUserContentBlocks(body.question ?? "", body.fileContents);
+    // از این نقطه به بعد، اعتبارسنجی‌های اولیه (سریع) پشت سر گذاشته شده و
+    // وارد مرحلهٔ کند (تماس با Claude) می‌شویم. پاسخ را به‌صورت یک جریان
+    // SSE برمی‌گردانیم تا در حین انتظار، اتصال با ارسال بستهٔ heartbeat
+    // زنده نگه داشته شود و پلتفرم میزبانی به دلیل «سکوت» اتصال را قطع نکند.
+    const question = body.question ?? "";
+    const fileContents = body.fileContents;
+
     const encoder = new TextEncoder();
-
-    const stream = new ReadableStream({
+    const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        let closed = false;
+        const sendEvent = (payload: Record<string, unknown>) => {
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+          } catch {
+            // اگر کلاینت اتصال را قطع کرده باشد، enqueue می‌تواند خطا بدهد؛
+            // در این حالت فقط از ارسال‌های بعدی صرف‌نظر می‌کنیم.
+            closed = true;
+          }
+        };
+
+        // بستهٔ heartbeat اولیه — بلافاصله ارسال می‌شود تا کلاینت مطمئن شود
+        // درخواست با موفقیت شروع شده است.
+        sendEvent({ text: "" });
+
+        const heartbeatId = setInterval(() => sendEvent({ text: "" }), HEARTBEAT_INTERVAL_MS);
+
         try {
-          const response = await fetch(ANTHROPIC_API_URL, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-api-key": apiKey,
-              "anthropic-version": "2023-06-01",
-            },
-            body: JSON.stringify({
-              model: MODEL_NAME,
-              max_tokens: MAX_OUTPUT_TOKENS,
-              stream: true,
-              system: FULL_SYSTEM_PROMPT,
-              messages: [{ role: "user", content: contentBlocks }],
-            }),
-          });
-
-          if (!response.ok) {
-            const errText = await response.text();
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `خطا در ارتباط با کلود (کد ${response.status}): ${errText}` })}\n\n`));
-            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-            controller.close();
-            return;
-          }
-
-          const reader = response.body?.getReader();
-          if (!reader) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "استریم در دسترس نیست" })}\n\n`));
-            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-            controller.close();
-            return;
-          }
-
-          const decoder = new TextDecoder();
-          let buffer = "";
-          let accumulatedText = "";
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              const data = line.slice(6).trim();
-              if (!data) continue;
-
-              try {
-                const event = JSON.parse(data);
-                if (event.type === "content_block_delta" && event.delta?.text) {
-                  accumulatedText += event.delta.text;
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
-                }
-              } catch {
-                // ignore non-JSON lines (e.g. event: ping)
-              }
-            }
-          }
-
-          const report = parseReportJson(accumulatedText);
+          const report = await callClaudeForAnalysis(apiKey, question, fileContents);
           const bodyElements = htmlToDocxElements(report.html);
           const docxBytes = await generateDocxReport(report, bodyElements);
-
-          let binary = "";
-          for (let i = 0; i < docxBytes.length; i++) {
-            binary += String.fromCharCode(docxBytes[i]);
-          }
-          const base64Docx = btoa(binary);
+          const base64Docx = encodeBase64(docxBytes);
           const safeFileName = sanitizeFileName(report.reportTitle);
 
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ docx: base64Docx, filename: safeFileName })}\n\n`));
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
+          sendEvent({ docx: base64Docx, filename: safeFileName });
         } catch (err) {
           console.error("خطا در پردازش درخواست تحلیل حقوقی:", err);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `خطا در تولید گزارش: ${err instanceof Error ? err.message : String(err)}` })}\n\n`));
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
+          sendEvent({
+            error: `خطا در تولید گزارش: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        } finally {
+          clearInterval(heartbeatId);
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // stream ممکن است از قبل بسته شده باشد؛ نادیده گرفته می‌شود.
+          }
         }
+      },
+      cancel() {
+        // کلاینت اتصال را قطع کرده (مثلاً کاربر تب را بست)؛ چیز دیگری برای
+        // انجام دادن نیست، heartbeatId داخل closure بالا با پایان تابع
+        // start (که از قبل await شده) پاک‌سازی می‌شود.
       },
     });
 
@@ -1067,12 +1124,19 @@ Deno.serve(async (req: Request) => {
       headers: {
         ...corsHeaders,
         "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
+        // برخی پروکسی‌ها (مثل nginx) پاسخ‌های استریمی را بافر می‌کنند مگر
+        // این هدر صراحتاً غیرفعالش کند؛ ارسال آن بی‌ضرر و در پلتفرم‌های
+        // دیگر بی‌اثر است.
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (err) {
-    console.error("خطا در پردازش درخواست:", err);
-    return jsonError(`خطا: ${err instanceof Error ? err.message : String(err)}`, 500);
+    console.error("خطا در پردازش درخواست تحلیل حقوقی:", err);
+    return jsonError(
+      `خطا در تولید گزارش: ${err instanceof Error ? err.message : String(err)}`,
+      500,
+    );
   }
 });
