@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Menu,
@@ -15,6 +15,7 @@ import {
   Scale,
   CheckCircle,
 } from 'lucide-react';
+import PageTransition from '../components/PageTransition';
 
 const NAV_ITEMS = [
   { label: 'خانه', href: '#home' },
@@ -94,7 +95,21 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [typedText, setTypedText] = useState('');
+  const [transitioning, setTransitioning] = useState(false);
+  const pendingNavRef = useRef<string | null>(null);
   const fullText = 'دستیار هوش مصنوعی حقوقی';
+
+  const navigateWithTransition = useCallback((path: string) => {
+    pendingNavRef.current = path;
+    setTransitioning(true);
+  }, []);
+
+  const handleTransitionDone = useCallback(() => {
+    const path = pendingNavRef.current;
+    setTransitioning(false);
+    pendingNavRef.current = null;
+    if (path) navigate(path);
+  }, [navigate]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30);
@@ -286,7 +301,7 @@ export default function Home() {
           {/* CTA Buttons */}
           <div className="animate-fade-in delay-500 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={() => navigate('/fa-analysis')}
+              onClick={() => navigateWithTransition('/fa-analysis')}
               className="btn-primary text-white font-semibold px-8 py-4 rounded-2xl flex items-center gap-3 text-base w-full sm:w-auto justify-center"
             >
               <Zap size={20} />
@@ -330,7 +345,7 @@ export default function Home() {
               return (
                 <AnimatedSection key={feature.id} className={`delay-${(i + 1) * 200}`}>
                   <button
-                    onClick={() => navigate(feature.href)}
+                    onClick={() => navigateWithTransition(feature.href)}
                     className="card-glow block bg-white rounded-3xl border border-navy-100 overflow-hidden group h-full shadow-sm hover:shadow-navy-100 w-full text-right"
                   >
                     {/* Card gradient top bar */}
@@ -515,7 +530,7 @@ export default function Home() {
                   برای تحلیل قرارداد، فایل متنی یا تصویری قرارداد را بارگذاری کنید و سؤال حقوقی خود را مطرح نمایید.
                 </p>
                 <button
-                  onClick={() => navigate('/fa-analysis')}
+                  onClick={() => navigateWithTransition('/fa-analysis')}
                   className="btn-primary text-white font-bold px-10 py-4 rounded-2xl inline-flex items-center gap-3 text-base"
                 >
                   <Zap size={20} />
@@ -563,7 +578,7 @@ export default function Home() {
                 ].map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => navigate(link.href)}
+                      onClick={() => navigateWithTransition(link.href)}
                       className="text-blue-200/60 hover:text-sky-300 text-sm transition-colors flex items-center gap-2"
                     >
                       <ChevronLeft size={12} className="text-sky-500/50" />
@@ -604,6 +619,7 @@ export default function Home() {
         </div>
       </footer>
 
+      <PageTransition active={transitioning} onDone={handleTransitionDone} />
     </div>
   );
 }

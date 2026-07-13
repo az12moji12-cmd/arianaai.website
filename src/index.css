@@ -224,3 +224,146 @@ body {
 .cursor-blink {
   animation: blink 1s step-end infinite;
 }
+
+/* ===== Page Transition Overlay ===== */
+.page-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e1c45;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(37, 87, 214, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(0, 136, 240, 0.2) 0%, transparent 40%),
+    radial-gradient(circle at 60% 80%, rgba(26, 61, 158, 0.25) 0%, transparent 45%);
+  opacity: 0;
+  pointer-events: none;
+}
+.page-transition-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pt-logo-wrap {
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.page-transition-overlay.active .pt-logo-wrap {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.pt-fade-out {
+  animation: ptFadeOut 0.45s ease forwards;
+}
+@keyframes ptFadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Geometric rotating rings */
+@keyframes ptRingRotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes ptRingRotateRev {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+.pt-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  border-style: dashed;
+}
+.pt-ring-1 {
+  width: 320px; height: 320px;
+  border: 1.5px dashed rgba(0, 136, 240, 0.25);
+  animation: ptRingRotate 12s linear infinite;
+}
+.pt-ring-2 {
+  width: 440px; height: 440px;
+  border: 1px dashed rgba(37, 87, 214, 0.18);
+  animation: ptRingRotateRev 18s linear infinite;
+}
+.pt-ring-3 {
+  width: 560px; height: 560px;
+  border: 1px dashed rgba(26, 61, 158, 0.12);
+  animation: ptRingRotate 24s linear infinite;
+}
+
+/* Orbiting geometric shapes */
+@keyframes ptOrbit1 {
+  from { transform: translate(-50%, -50%) rotate(0deg) translateX(160px) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg) translateX(160px) rotate(-360deg); }
+}
+@keyframes ptOrbit2 {
+  from { transform: translate(-50%, -50%) rotate(120deg) translateX(220px) rotate(-120deg); }
+  to { transform: translate(-50%, -50%) rotate(480deg) translateX(220px) rotate(-480deg); }
+}
+@keyframes ptOrbit3 {
+  from { transform: translate(-50%, -50%) rotate(240deg) translateX(280px) rotate(-240deg); }
+  to { transform: translate(-50%, -50%) rotate(600deg) translateX(280px) rotate(-600deg); }
+}
+.pt-shape {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+.pt-shape-1 { animation: ptOrbit1 8s linear infinite; }
+.pt-shape-2 { animation: ptOrbit2 10s linear infinite; }
+.pt-shape-3 { animation: ptOrbit3 12s linear infinite; }
+
+/* Grid overlay */
+.pt-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: ptGridPulse 4s ease-in-out infinite;
+}
+@keyframes ptGridPulse {
+  0%, 100% { opacity: 0.04; }
+  50% { opacity: 0.08; }
+}
+
+/* Glow pulse behind logo */
+@keyframes ptGlow {
+  0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.5; transform: translate(-50%, -50%) scale(1.15); }
+}
+.pt-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 136, 240, 0.4) 0%, transparent 70%);
+  animation: ptGlow 3s ease-in-out infinite;
+}
+
+@media (max-width: 640px) {
+  .pt-ring-1 { width: 200px; height: 200px; }
+  .pt-ring-2 { width: 280px; height: 280px; }
+  .pt-ring-3 { width: 360px; height: 360px; }
+  @keyframes ptOrbit1 {
+    from { transform: translate(-50%, -50%) rotate(0deg) translateX(100px) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg) translateX(100px) rotate(-360deg); }
+  }
+  @keyframes ptOrbit2 {
+    from { transform: translate(-50%, -50%) rotate(120deg) translateX(140px) rotate(-120deg); }
+    to { transform: translate(-50%, -50%) rotate(480deg) translateX(140px) rotate(-480deg); }
+  }
+  @keyframes ptOrbit3 {
+    from { transform: translate(-50%, -50%) rotate(240deg) translateX(180px) rotate(-240deg); }
+    to { transform: translate(-50%, -50%) rotate(600deg) translateX(180px) rotate(-600deg); }
+  }
+}
