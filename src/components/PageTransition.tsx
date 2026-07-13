@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Props {
   active: boolean;
@@ -7,39 +7,43 @@ interface Props {
 
 export default function PageTransition({ active, onDone }: Props) {
   const [fadingOut, setFadingOut] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     if (!active) return;
     setFadingOut(false);
-    const fadeTimer = setTimeout(() => setFadingOut(true), 1600);
+    setMounted(false);
+
+    const mountTimer = requestAnimationFrame(() => setMounted(true));
+    const fadeTimer = setTimeout(() => setFadingOut(true), 1400);
     const doneTimer = setTimeout(() => {
-      onDone();
+      onDoneRef.current();
       setFadingOut(false);
-    }, 2100);
+      setMounted(false);
+    }, 1900);
+
     return () => {
+      cancelAnimationFrame(mountTimer);
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
     };
-  }, [active, onDone]);
-
-  if (!active) return null;
+  }, [active]);
 
   return (
     <div
-      className={`page-transition-overlay active ${fadingOut ? 'pt-fade-out' : ''}`}
+      className={`page-transition-overlay ${mounted ? 'active' : ''} ${fadingOut ? 'pt-fade-out' : ''}`}
       dir="rtl"
     >
       <div className="pt-grid" />
 
-      {/* Rotating dashed rings */}
       <div className="pt-ring pt-ring-1" />
       <div className="pt-ring pt-ring-2" />
       <div className="pt-ring pt-ring-3" />
 
-      {/* Glow behind logo */}
       <div className="pt-glow" />
 
-      {/* Orbiting geometric shapes */}
       <div className="pt-shape pt-shape-1">
         <div className="w-4 h-4 rounded-full bg-sky-400/60 shadow-[0_0_12px_rgba(0,136,240,0.5)]" />
       </div>
@@ -50,7 +54,6 @@ export default function PageTransition({ active, onDone }: Props) {
         <div className="w-3.5 h-3.5 rounded-sm border border-sky-300/50 shadow-[0_0_10px_rgba(0,136,240,0.3)]" />
       </div>
 
-      {/* Logo center */}
       <div className="pt-logo-wrap relative z-10 flex flex-col items-center">
         <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-2xl">
           <img

@@ -240,6 +240,7 @@ body {
     radial-gradient(circle at 60% 80%, rgba(26, 61, 158, 0.25) 0%, transparent 45%);
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.3s ease;
 }
 .page-transition-overlay.active {
   opacity: 1;
