@@ -12,25 +12,34 @@ export default function PageTransition({ active, onDone }: Props) {
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
-  useEffect(() => {
-    if (!active) return;
+useEffect(() => {
+  if (!active) return;
+  setFadingOut(false);
+  setMounted(false);
+
+  const mountTimer = requestAnimationFrame(() => setMounted(true));
+
+  // وقتی پوشش هنوز کاملاً کدره، صفحه رو عوض کن
+  const navigateTimer = setTimeout(() => {
+    onDoneRef.current();
+  }, 900);
+
+  // کمی بعد از ناوبری، شروع به محو شدن کن تا صفحهٔ جدید نمایان بشه
+  const fadeTimer = setTimeout(() => setFadingOut(true), 980);
+
+  // پایان کامل انیمیشن و ریست state
+  const doneTimer = setTimeout(() => {
     setFadingOut(false);
     setMounted(false);
+  }, 1480);
 
-    const mountTimer = requestAnimationFrame(() => setMounted(true));
-    const fadeTimer = setTimeout(() => setFadingOut(true), 1400);
-    const doneTimer = setTimeout(() => {
-      onDoneRef.current();
-      setFadingOut(false);
-      setMounted(false);
-    }, 1900);
-
-    return () => {
-      cancelAnimationFrame(mountTimer);
-      clearTimeout(fadeTimer);
-      clearTimeout(doneTimer);
-    };
-  }, [active]);
+  return () => {
+    cancelAnimationFrame(mountTimer);
+    clearTimeout(navigateTimer);
+    clearTimeout(fadeTimer);
+    clearTimeout(doneTimer);
+  };
+}, [active]);
 
   return (
     <div
