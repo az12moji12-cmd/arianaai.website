@@ -437,14 +437,14 @@ function textRunsFromInline(node: any, bold = false, italics = false, color?: st
       const text = String(child.textContent || "").replace(/[\r\n\t]+/g, " ");
       if (text.length === 0) continue;
       if (text.trim().length === 0) {
-        runs.push(new TextRun({ text: " ", font: BODY_FONT, size: BODY_SIZE, bold, italics, ...(color ? { color } : {}) }));
+        runs.push(new TextRun({ text: " ", font: BODY_FONT, size: BODY_SIZE, bold, italics, rightToLeft: true, ...(color ? { color } : {}) }));
         continue;
       }
-      runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, bold, italics, ...(color ? { color } : {}) }));
+      runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, bold, italics, rightToLeft: true, ...(color ? { color } : {}) }));
     } else if (child.nodeType === 1) {
       const tag = String(child.tagName || "").toLowerCase();
       if (tag === "br") {
-        runs.push(new TextRun({ text: "", break: 1 }));
+        runs.push(new TextRun({ text: "", break: 1, rightToLeft: true }));
       } else if (tag === "strong" || tag === "b") {
         runs.push(...textRunsFromInline(child, true, italics, color));
       } else if (tag === "em" || tag === "i") {
@@ -486,14 +486,14 @@ function buildList(listEl: any, ordered: boolean, level: number): Paragraph[] {
       if (dc.nodeType === 3) {
         const text = String(dc.textContent || "").replace(/[\r\n\t]+/g, " ");
         if (text.trim().length > 0) {
-          runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT }));
+          runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT, rightToLeft: true }));
         }
       } else if (dc.nodeType === 1) {
         runs.push(...textRunsFromInline({ childNodes: [dc] }, false, false, C_TEXT));
       }
     }
     if (runs.length === 0) {
-      runs.push(new TextRun({ text: "", font: BODY_FONT, size: BODY_SIZE, color: C_TEXT }));
+      runs.push(new TextRun({ text: "", font: BODY_FONT, size: BODY_SIZE, color: C_TEXT, rightToLeft: true }));
     }
 
     result.push(
@@ -563,6 +563,7 @@ function buildTable(tableEl: any): Table {
             font: BODY_FONT,
             size: BODY_SIZE,
             bold: isHeaderRow,
+            rightToLeft: true,
             ...(textColor ? { color: textColor } : { color: C_TEXT }),
           }),
         ];
@@ -570,7 +571,7 @@ function buildTable(tableEl: any): Table {
 
       return new TableCell({
         width: { size: Math.floor(100 / Math.max(cellEls.length, 1)), type: WidthType.PERCENTAGE },
-        shading: fill ? { type: ShadingType.SOLID, fill, color: "auto" } : undefined,
+        shading: fill ? { type: ShadingType.CLEAR, fill, color: "auto" } : undefined,
         verticalAlign: VerticalAlign.CENTER,
         margins: { top: 110, bottom: 110, left: 150, right: 150 },
         children: [
@@ -629,7 +630,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
         alignment: AlignmentType.RIGHT,
         bidirectional: true,
         spacing: { line: 340, after: 140 },
-        children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT })],
+        children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT, rightToLeft: true })],
       }),
     ];
   }
@@ -773,7 +774,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
         // ستون برچسب (راست)
         new TableCell({
           width: { size: 32, type: WidthType.PERCENTAGE },
-          shading: { type: ShadingType.SOLID, fill: C_PRIMARY_LT, color: "auto" },
+          shading: { type: ShadingType.CLEAR, fill: C_PRIMARY_LT, color: "auto" },
           verticalAlign: VerticalAlign.CENTER,
           margins: { top: 120, bottom: 120, left: 180, right: 180 },
           children: [
@@ -789,7 +790,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
           width: { size: 68, type: WidthType.PERCENTAGE },
           shading: idx % 2 === 0
             ? undefined
-            : { type: ShadingType.SOLID, fill: C_BG_ALT, color: "auto" },
+            : { type: ShadingType.CLEAR, fill: C_BG_ALT, color: "auto" },
           verticalAlign: VerticalAlign.CENTER,
           margins: { top: 120, bottom: 120, left: 180, right: 180 },
           children: [
