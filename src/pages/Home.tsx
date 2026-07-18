@@ -659,9 +659,7 @@ export default function Home() {
                             <div className={`w-16 h-16 ${feature.iconBg} rounded-2xl flex items-center justify-center shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3`}>
                               <Icon size={30} className={feature.accentColor} />
                             </div>
-                            <span className="text-xs font-mono tracking-widest text-navy-300 pt-1">
-                              {feature.index}
-                            </span>
+
                           </div>
 
                           <h3 className="text-xl font-bold text-navy-900 mb-3 group-hover:text-navy-600 transition-colors">
