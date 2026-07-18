@@ -221,7 +221,7 @@
   box-shadow: 0 0 18px rgba(0, 136, 240, 0.45), inset 0 0 14px rgba(0, 136, 240, 0.2);
 }
 .pt-ring-2 {
-  width: 300px; height: 148px; margin: -74px 0 0 -150px;
+  width: 300px; height: 300px; margin: -150px 0 0 -150px;
   border: 1.5px solid rgba(37, 87, 214, 0.55);
   box-shadow: 0 0 22px rgba(37, 87, 214, 0.35);
 }
@@ -231,7 +231,7 @@
   box-shadow: 0 0 18px rgba(0, 136, 240, 0.22);
 }
 .pt-ring-4 {
-  width: 430px; height: 132px; margin: -66px 0 0 -215px;
+  width: 430px; height: 430px; margin: -215px 0 0 -215px;
   border: 1px solid rgba(37, 87, 214, 0.32);
   box-shadow: 0 0 16px rgba(37, 87, 214, 0.18);
 }
@@ -267,14 +267,14 @@
 @keyframes pt-r1-in { 0%{opacity:0; transform:translate(-50%,-50%) rotateX(12deg) rotateZ(-60deg) scale(0);} 100%{opacity:1; transform:translate(-50%,-50%) rotateX(12deg) rotateZ(0deg) scale(1);} }
 @keyframes pt-r1-spin { from{transform:translate(-50%,-50%) rotateX(12deg) rotateZ(0deg) scale(1);} to{transform:translate(-50%,-50%) rotateX(12deg) rotateZ(360deg) scale(1);} }
 
-@keyframes pt-r2-in { 0%{opacity:0; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(60deg) scale(0);} 100%{opacity:1; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(0deg) scale(1);} }
-@keyframes pt-r2-spin { from{transform:translate(-50%,-50%) rotateX(0deg) rotateZ(360deg) scale(1);} to{transform:translate(-50%,-50%) rotateX(0deg) rotateZ(0deg) scale(1);} }
+@keyframes pt-r2-in { 0%{opacity:0; transform:translate(-50%,-50%) rotateX(20deg) rotateZ(60deg) scale(0);} 100%{opacity:1; transform:translate(-50%,-50%) rotateX(20deg) rotateZ(0deg) scale(1);} }
+@keyframes pt-r2-spin { from{transform:translate(-50%,-50%) rotateX(20deg) rotateZ(360deg) scale(1);} to{transform:translate(-50%,-50%) rotateX(20deg) rotateZ(0deg) scale(1);} }
 
 @keyframes pt-r3-in { 0%{opacity:0; transform:translate(-50%,-50%) rotateX(58deg) rotateZ(-80deg) scale(0);} 100%{opacity:1; transform:translate(-50%,-50%) rotateX(58deg) rotateZ(0deg) scale(1);} }
 @keyframes pt-r3-spin { from{transform:translate(-50%,-50%) rotateX(58deg) rotateZ(0deg) scale(1);} to{transform:translate(-50%,-50%) rotateX(58deg) rotateZ(360deg) scale(1);} }
 
-@keyframes pt-r4-in { 0%{opacity:0; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(100deg) scale(0);} 100%{opacity:1; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(0deg) scale(1);} }
-@keyframes pt-r4-spin { from{transform:translate(-50%,-50%) rotateX(0deg) rotateZ(360deg) scale(1);} to{transform:translate(-50%,-50%) rotateX(0deg) rotateZ(0deg) scale(1);} }
+@keyframes pt-r4-in { 0%{opacity:0; transform:translate(-50%,-50%) rotateX(35deg) rotateZ(100deg) scale(0);} 100%{opacity:1; transform:translate(-50%,-50%) rotateX(35deg) rotateZ(0deg) scale(1);} }
+@keyframes pt-r4-spin { from{transform:translate(-50%,-50%) rotateX(35deg) rotateZ(360deg) scale(1);} to{transform:translate(-50%,-50%) rotateX(35deg) rotateZ(0deg) scale(1);} }
 
 .pt-fade-out .pt-ring-1 { animation: pt-r1-out .48s cubic-bezier(.6,0,.85,1) forwards; }
 .pt-fade-out .pt-ring-2 { animation: pt-r2-out .48s cubic-bezier(.6,0,.85,1) forwards .015s; }
@@ -282,9 +282,9 @@
 .pt-fade-out .pt-ring-4 { animation: pt-r4-out .48s cubic-bezier(.6,0,.85,1) forwards .045s; }
 
 @keyframes pt-r1-out { from{opacity:1; transform:translate(-50%,-50%) rotateX(12deg) rotateZ(0deg) scale(1);} to{opacity:0; transform:translate(-50%,-50%) rotateX(12deg) rotateZ(680deg) scale(0);} }
-@keyframes pt-r2-out { from{opacity:1; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(0deg) scale(1);} to{opacity:0; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(-620deg) scale(0);} }
+@keyframes pt-r2-out { from{opacity:1; transform:translate(-50%,-50%) rotateX(20deg) rotateZ(0deg) scale(1);} to{opacity:0; transform:translate(-50%,-50%) rotateX(20deg) rotateZ(-620deg) scale(0);} }
 @keyframes pt-r3-out { from{opacity:1; transform:translate(-50%,-50%) rotateX(58deg) rotateZ(0deg) scale(1);} to{opacity:0; transform:translate(-50%,-50%) rotateX(58deg) rotateZ(760deg) scale(0);} }
-@keyframes pt-r4-out { from{opacity:1; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(0deg) scale(1);} to{opacity:0; transform:translate(-50%,-50%) rotateX(0deg) rotateZ(-700deg) scale(0);} }
+@keyframes pt-r4-out { from{opacity:1; transform:translate(-50%,-50%) rotateX(35deg) rotateZ(0deg) scale(1);} to{opacity:0; transform:translate(-50%,-50%) rotateX(35deg) rotateZ(-700deg) scale(0);} }
 
 /* =========================================================================
    درخشش مرکزی پشت لوگو + فلش انفجاری هنگام خروج
@@ -430,9 +430,9 @@
    ========================================================================= */
 @media (max-width: 640px) {
   .pt-ring-1 { width: 92px;  height: 92px;  margin: -46px 0 0 -46px; }
-  .pt-ring-2 { width: 214px; height: 106px; margin: -53px 0 0 -107px; }
+  .pt-ring-2 { width: 214px; height: 214px; margin: -107px 0 0 -107px; }
   .pt-ring-3 { width: 166px; height: 166px; margin: -83px 0 0 -83px; }
-  .pt-ring-4 { width: 306px; height: 94px;  margin: -47px 0 0 -153px; }
+  .pt-ring-4 { width: 306px; height: 306px; margin: -153px 0 0 -153px; }
   .pt-glow   { width: 340px; height: 340px; margin: -170px 0 0 -170px; }
 
   .pt-blueprint { background-size: 44px 44px; }

@@ -4,13 +4,16 @@ import './PageTransition.css';
 interface Props {
   active: boolean;
   onDone: () => void;
+  onNavigate: () => void;
 }
 
-export default function PageTransition({ active, onDone }: Props) {
+export default function PageTransition({ active, onDone, onNavigate }: Props) {
   const [fadingOut, setFadingOut] = useState(false);
   const [mounted, setMounted] = useState(false);
   const onDoneRef = useRef(onDone);
+  const onNavigateRef = useRef(onNavigate);
   onDoneRef.current = onDone;
+  onNavigateRef.current = onNavigate;
 
   useEffect(() => {
     if (!active) return;
@@ -18,6 +21,7 @@ export default function PageTransition({ active, onDone }: Props) {
     setMounted(false);
 
     const mountTimer = requestAnimationFrame(() => setMounted(true));
+    const navigateTimer = setTimeout(() => onNavigateRef.current(), 1500);
     const fadeTimer = setTimeout(() => setFadingOut(true), 1500);
     const doneTimer = setTimeout(() => {
       onDoneRef.current();
@@ -27,6 +31,7 @@ export default function PageTransition({ active, onDone }: Props) {
 
     return () => {
       cancelAnimationFrame(mountTimer);
+      clearTimeout(navigateTimer);
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
     };

@@ -364,9 +364,14 @@ export default function Home() {
   }, []);
 
   const handleTransitionDone = useCallback(() => {
-    const path = pendingNavRef.current;
     setTransitioning(false);
     pendingNavRef.current = null;
+  }, []);
+
+  // Navigate during the fade-out phase, while the overlay still covers the
+  // screen, so the new route renders underneath before the overlay unmounts.
+  const handleTransitionNavigate = useCallback(() => {
+    const path = pendingNavRef.current;
     if (path) navigate(path);
   }, [navigate]);
 
@@ -900,7 +905,7 @@ export default function Home() {
         </div>
       </footer>
 
-      <PageTransition active={transitioning} onDone={handleTransitionDone} />
+      <PageTransition active={transitioning} onDone={handleTransitionDone} onNavigate={handleTransitionNavigate} />
     </div>
   );
 }
