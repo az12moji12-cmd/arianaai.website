@@ -1,4 +1,3 @@
-import "./PageTransition.css";
 import { useEffect, useRef, useState } from 'react';
 
 interface Props {
@@ -16,21 +15,17 @@ export default function PageTransition({ active, onDone }: Props) {
     if (!active) return;
     setFadingOut(false);
     setMounted(false);
+
     const mountTimer = requestAnimationFrame(() => setMounted(true));
-    // وقتی پوشش هنوز کاملاً کدره، صفحه رو عوض کن
-    const navigateTimer = setTimeout(() => {
-      onDoneRef.current();
-    }, 900);
-    // کمی بعد از ناوبری، شروع به محو شدن کن تا صفحهٔ جدید نمایان بشه
-    const fadeTimer = setTimeout(() => setFadingOut(true), 980);
-    // پایان کامل انیمیشن و ریست state
+    const fadeTimer = setTimeout(() => setFadingOut(true), 1400);
     const doneTimer = setTimeout(() => {
+      onDoneRef.current();
       setFadingOut(false);
       setMounted(false);
-    }, 1480);
+    }, 1900);
+
     return () => {
       cancelAnimationFrame(mountTimer);
-      clearTimeout(navigateTimer);
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
     };
@@ -41,21 +36,13 @@ export default function PageTransition({ active, onDone }: Props) {
       className={`page-transition-overlay ${mounted ? 'active' : ''} ${fadingOut ? 'pt-fade-out' : ''}`}
       dir="rtl"
     >
-      {/* لایه‌ی شبکه‌ی بلوپرینت — پشت همه‌چیز، هماهنگ با صفحه‌ی نخست */}
-      <div className="pt-blueprint" aria-hidden="true" />
-
-      {/* میدان متراکم ذرات صعودی — سه لایه با سرعت و اندازه‌ی متفاوت */}
-      <div className="pt-motes" aria-hidden="true">
-        <div className="pt-motes-1" />
-        <div className="pt-motes-2" />
-        <div className="pt-motes-3" />
-      </div>
-
       <div className="pt-grid" />
+
       <div className="pt-ring pt-ring-1" />
       <div className="pt-ring pt-ring-2" />
       <div className="pt-ring pt-ring-3" />
       <div className="pt-ring pt-ring-4" />
+
       <div className="pt-glow" />
 
       <div className="pt-shape pt-shape-1">
