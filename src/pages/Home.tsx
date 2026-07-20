@@ -147,20 +147,6 @@ function MotifStyles() {
       .corner-frame .cf-br  { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
       .corner-frame .cf-bl  { bottom: -1px; left: -1px;  border-bottom: 2px solid; border-left: 2px solid; }
 
-      .tunnel-ring {
-        position: absolute;
-        border-radius: 9999px;
-        border: 1px solid rgba(125,211,252,0.55);
-        transform: translate(-50%, -50%) scale(0.1);
-        opacity: 0;
-        animation: tunnelRing 6.5s cubic-bezier(0.16, 0.6, 0.3, 1) infinite;
-      }
-      @keyframes tunnelRing {
-        0%   { transform: translate(-50%, -50%) scale(0.08); opacity: 0; }
-        8%   { opacity: 0.9; }
-        70%  { opacity: 0.35; }
-        100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
-      }
       .tunnel-ring-soft {
         position: absolute;
         border-radius: 9999px;
@@ -174,20 +160,6 @@ function MotifStyles() {
         12%  { opacity: 0.5; }
         75%  { opacity: 0.15; }
         100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
-      }
-
-      .mote {
-        position: absolute;
-        bottom: -4%;
-        border-radius: 9999px;
-        background: rgba(186,230,253,0.85);
-        animation: moteRise linear infinite;
-      }
-      @keyframes moteRise {
-        0%   { transform: translateY(0) scale(1); opacity: 0; }
-        10%  { opacity: 0.9; }
-        90%  { opacity: 0.35; }
-        100% { transform: translateY(-112vh) scale(0.4); opacity: 0; }
       }
 
       .ruler-line {
@@ -209,11 +181,76 @@ function MotifStyles() {
         to { stroke-dashoffset: -140; }
       }
 
+      /* ---------------------------------------------------------------- */
+      /* Tunnel flythrough — hero signature motion                        */
+      /* A blueprint-style tunnel bore (arched cross-section, drafted in  */
+      /* thin cyan linework) with ring after ring rushing toward the      */
+      /* viewer, as if the camera is moving forward through the tunnel.   */
+      /* Paired ceiling/wall lights ride each ring outward, and a soft    */
+      /* point of light glows at the vanishing point — "light at the end  */
+      /* of the tunnel" doubling as the product's AI-guidance metaphor.   */
+      /* ---------------------------------------------------------------- */
+      .tunnel-fly-stage {
+        position: absolute;
+        inset: 0;
+        perspective: 900px;
+      }
+
+      .tunnel-fly-ring {
+        position: absolute;
+        top: 44%;
+        left: 50%;
+        width: 340px;
+        height: 250px;
+        transform: translate(-50%, -50%) scale(0.04);
+        opacity: 0;
+        animation: tunnelFly 8.8s cubic-bezier(0.19, 0.55, 0.3, 1) infinite;
+        will-change: transform, opacity;
+      }
+      @keyframes tunnelFly {
+        0%   { transform: translate(-50%, -50%) scale(0.04); opacity: 0; }
+        6%   { opacity: 0.95; }
+        70%  { opacity: 0.65; }
+        92%  { opacity: 0.18; }
+        100% { transform: translate(-50%, -50%) scale(2.3); opacity: 0; }
+      }
+
+      .tunnel-fly-arch {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .tunnel-vanish-glow {
+        position: absolute;
+        top: 44%;
+        left: 50%;
+        width: 90px;
+        height: 90px;
+        border-radius: 9999px;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, rgba(224,247,255,0.9) 0%, rgba(125,211,252,0.35) 45%, rgba(125,211,252,0) 75%);
+        animation: vanishPulse 4.4s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes vanishPulse {
+        0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(0.9); }
+        50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.15); }
+      }
+
+      .tunnel-fly-track {
+        position: absolute;
+        top: 44%;
+        left: 50%;
+        width: 1px;
+        height: 1px;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         .bp-grid-drift,
-        .tunnel-ring,
         .tunnel-ring-soft,
-        .mote,
+        .tunnel-fly-ring,
+        .tunnel-vanish-glow,
         .path-draw { animation: none !important; opacity: 0.3; }
       }
     `}</style>
@@ -260,65 +297,87 @@ function CornerFrame({
 
 /**
  * TunnelAperture — signature hero motion.
- * A sequence of receding rings converging on a point of light behind the
- * logo, echoing both the company's identity ("تونل سد آریانا" — tunnel/dam
- * construction) and the product's role as an AI guide through a legal
- * document ("light at the end of the tunnel").
+ *
+ * A camera flythrough down a blueprint-drafted tunnel bore: successive arched
+ * cross-sections (the tunnel's real structural profile) rush from the
+ * vanishing point toward the viewer, each ring carrying a pair of ceiling
+ * lights that grow and spread outward with it, exactly as tunnel lights
+ * would sweep past a moving camera. The lines are drawn in thin cyan
+ * "as-built drawing" strokes on a deep navy field, echoing both the
+ * company's work (تونل سد آریانا — tunnel/dam construction) and the
+ * product's role guiding you through a document toward a clear answer.
+ *
+ * The loop never reads as a fixed-length cycle: many rings share one long
+ * duration but start at evenly staggered points along it, so at any instant
+ * some ring is always mid-approach — the eye never catches a reset.
  */
 function TunnelAperture() {
-  const RING_COUNT = 7;
+  const RING_COUNT = 9;
   const rings = Array.from({ length: RING_COUNT });
+  const RING_DURATION = 8.8; // seconds — kept in sync with the tunnelFly keyframes above
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      {/* deep navy field, the "as-built drawing" backdrop */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 42%, rgba(56,189,248,0.16) 0%, rgba(56,189,248,0) 55%), linear-gradient(180deg, #050b18 0%, #0a1a33 45%, #0f2447 100%)',
+            'radial-gradient(circle at 50% 44%, rgba(56,189,248,0.16) 0%, rgba(56,189,248,0) 55%), linear-gradient(180deg, #050b18 0%, #0a1a33 45%, #0f2447 100%)',
         }}
       />
+
+      {/* faint drafting-table grid, drifting slowly for ambient depth */}
       <BlueprintGrid
-        className="absolute -inset-[10%] opacity-[0.09]"
+        className="absolute -inset-[10%] opacity-[0.08]"
         line="rgba(125,211,252,0.9)"
         size={64}
         drift
       />
-      {rings.map((_, i) => {
-        const size = 180 + i * 130;
-        return (
+
+      {/* the tunnel bore itself: staggered arches rushing toward the viewer */}
+      <div className="tunnel-fly-stage">
+        {rings.map((_, i) => (
           <div
             key={`ring-${i}`}
-            className="tunnel-ring"
-            style={{
-              top: '42%',
-              left: '50%',
-              width: size,
-              height: size,
-              animationDelay: `${i * (6.5 / RING_COUNT)}s`,
-            }}
-          />
-        );
-      })}
-      {Array.from({ length: 22 }).map((_, i) => {
-        const left = (i * 47.3) % 100;
-        const duration = 9 + (i % 6) * 2.2;
-        const delay = -(i * 1.6) % duration;
-        const size = i % 4 === 0 ? 4 : 2;
-        return (
-          <div
-            key={`mote-${i}`}
-            className="mote"
-            style={{
-              left: `${left}%`,
-              width: size,
-              height: size,
-              animationDuration: `${duration}s`,
-              animationDelay: `${delay}s`,
-            }}
-          />
-        );
-      })}
+            className="tunnel-fly-ring"
+            style={{ animationDelay: `${i * (RING_DURATION / RING_COUNT)}s` }}
+          >
+            <svg
+              className="tunnel-fly-arch"
+              viewBox="0 0 340 250"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* tunnel cross-section: arched crown, straight side-walls, flat invert — the real structural profile */}
+              <path
+                d="M14 246 L14 118 Q14 12 170 12 Q326 12 326 118 L326 246"
+                fill="none"
+                stroke="rgba(125,211,252,0.55)"
+                strokeWidth="2"
+              />
+              {/* inner drafting line, like a secondary lining shown on an as-built drawing */}
+              <path
+                d="M34 246 L34 120 Q34 32 170 32 Q306 32 306 120 L306 246"
+                fill="none"
+                stroke="rgba(56,189,248,0.22)"
+                strokeWidth="1"
+                strokeDasharray="4 7"
+              />
+              {/* invert (floor) dimension line */}
+              <line x1="14" y1="246" x2="326" y2="246" stroke="rgba(125,211,252,0.3)" strokeWidth="1" />
+
+              {/* paired ceiling/wall lights, riding the same ring outward as it approaches */}
+              <circle cx="14" cy="150" r="5" fill="rgba(224,247,255,0.95)" />
+              <circle cx="14" cy="150" r="12" fill="rgba(125,211,252,0.28)" />
+              <circle cx="326" cy="150" r="5" fill="rgba(224,247,255,0.95)" />
+              <circle cx="326" cy="150" r="12" fill="rgba(125,211,252,0.28)" />
+            </svg>
+          </div>
+        ))}
+      </div>
+
+      {/* the point of light at the end of the tunnel */}
+      <div className="tunnel-vanish-glow" />
     </div>
   );
 }
