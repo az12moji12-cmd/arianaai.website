@@ -183,12 +183,14 @@ function MotifStyles() {
 
       /* ---------------------------------------------------------------- */
       /* Tunnel flythrough — hero signature motion                        */
-      /* A blueprint-style tunnel bore (arched cross-section, drafted in  */
-      /* thin cyan linework) with ring after ring rushing toward the      */
-      /* viewer, as if the camera is moving forward through the tunnel.   */
-      /* Paired ceiling/wall lights ride each ring outward, and a soft    */
-      /* point of light glows at the vanishing point — "light at the end  */
-      /* of the tunnel" doubling as the product's AI-guidance metaphor.   */
+      /* A blueprint-style tunnel bore, drafted as one continuous arched   */
+      /* profile (straight sidewalls rising into a single smooth vault —  */
+      /* the real cross-section of a bored tunnel, not an approximated    */
+      /* polygon), with ring after ring drifting toward the viewer at a   */
+      /* slow, unhurried pace. Soft, low-intensity wall lighting is       */
+      /* recessed at the springline — where the straight wall turns into  */
+      /* the vault — exactly where real tunnel luminaires sit. A gentle   */
+      /* point of light glows at the vanishing point.                    */
       /* ---------------------------------------------------------------- */
       .tunnel-fly-stage {
         position: absolute;
@@ -199,14 +201,14 @@ function MotifStyles() {
       .tunnel-cam-sway {
         position: absolute;
         inset: -6%;
-        animation: camSway 19s ease-in-out infinite;
+        animation: camSway 34s ease-in-out infinite;
         transform-origin: 50% 44%;
       }
       @keyframes camSway {
         0%   { transform: translate(0, 0) rotate(0deg) scale(1.08); }
-        22%  { transform: translate(-9px, 5px) rotate(-0.35deg) scale(1.08); }
-        48%  { transform: translate(5px, -7px) rotate(0.3deg) scale(1.08); }
-        76%  { transform: translate(8px, 4px) rotate(0.45deg) scale(1.08); }
+        25%  { transform: translate(-6px, 3px) rotate(-0.2deg) scale(1.08); }
+        50%  { transform: translate(3px, -4px) rotate(0.18deg) scale(1.08); }
+        78%  { transform: translate(5px, 2px) rotate(0.26deg) scale(1.08); }
         100% { transform: translate(0, 0) rotate(0deg) scale(1.08); }
       }
 
@@ -219,15 +221,15 @@ function MotifStyles() {
         transform: translate(-50%, -50%) scale(0.035);
         opacity: 0;
         animation-name: tunnelFly;
-        animation-timing-function: cubic-bezier(0.19, 0.55, 0.3, 1);
+        animation-timing-function: cubic-bezier(0.22, 0.6, 0.32, 1);
         animation-iteration-count: infinite;
         will-change: transform, opacity;
       }
       @keyframes tunnelFly {
         0%   { transform: translate(-50%, -50%) scale(0.035); opacity: 0; }
-        5%   { opacity: 1; }
-        62%  { opacity: 0.55; }
-        88%  { opacity: 0.12; }
+        6%   { opacity: 0.9; }
+        64%  { opacity: 0.42; }
+        90%  { opacity: 0.1; }
         100% { transform: translate(-50%, -46%) scale(3.1); opacity: 0; }
       }
 
@@ -246,7 +248,7 @@ function MotifStyles() {
         transform: translate(-50%, -50%) scale(0.035);
         opacity: 0;
         animation-name: tunnelFly;
-        animation-timing-function: cubic-bezier(0.19, 0.55, 0.3, 1);
+        animation-timing-function: cubic-bezier(0.22, 0.6, 0.32, 1);
         animation-iteration-count: infinite;
         will-change: transform, opacity;
       }
@@ -267,17 +269,17 @@ function MotifStyles() {
         position: absolute;
         top: 44%;
         left: 50%;
-        width: 90px;
-        height: 90px;
+        width: 80px;
+        height: 80px;
         border-radius: 9999px;
         transform: translate(-50%, -50%);
-        background: radial-gradient(circle, rgba(224,247,255,0.9) 0%, rgba(125,211,252,0.35) 45%, rgba(125,211,252,0) 75%);
-        animation: vanishPulse 4.4s ease-in-out infinite;
+        background: radial-gradient(circle, rgba(224,247,255,0.75) 0%, rgba(125,211,252,0.26) 45%, rgba(125,211,252,0) 75%);
+        animation: vanishPulse 6.5s ease-in-out infinite;
         pointer-events: none;
       }
       @keyframes vanishPulse {
-        0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(0.9); }
-        50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.15); }
+        0%, 100% { opacity: 0.5;  transform: translate(-50%, -50%) scale(0.9); }
+        50%      { opacity: 0.85; transform: translate(-50%, -50%) scale(1.1); }
       }
 
       .tunnel-perspective-lines {
@@ -346,38 +348,53 @@ function lerpPt(a: [number, number], b: [number, number], t: number): [number, n
 }
 
 /**
+ * Builds a true tunnel cross-section: straight sidewalls rising from the
+ * floor to the springline, then ONE continuous elliptical arc over the top.
+ * This is the actual as-built geometry of a bored/NATM tunnel — a smooth
+ * vault, not a many-sided polygon standing in for a curve — which is what
+ * makes the bore read as naturally arched instead of faceted.
+ */
+function archPath(width: number, height: number, floorInset: number, wallInset: number) {
+  const left = wallInset;
+  const right = width - wallInset;
+  const floorY = height - floorInset;
+  const springY = height * 0.56;
+  const rx = (right - left) / 2;
+  const ry = springY - height * 0.03;
+  return `M${left},${floorY} L${left},${springY} A${rx},${ry} 0 0 1 ${right},${springY} L${right},${floorY}`;
+}
+
+/**
  * TunnelAperture — signature hero motion.
  *
- * This is a real one-point-perspective tunnel bore, drafted like an as-built
- * engineering section, built from three coordinated layers rather than a
- * single flat shape:
+ * Built from three coordinated layers:
  *
- * 1. A STATIC perspective skeleton — the tunnel mouth frame, seven structural
- *    lines converging on the vanishing point, and a receding rail track with
- *    tightening sleeper spacing — the same construction a draughtsman uses to
- *    fake depth on paper. This is what makes the scene read as a tunnel
- *    rather than a stack of expanding shapes.
- * 2. A dense stream of segmented precast lining rings (each built from nine
- *    bolted joints, an inner secondary lining, and a floor sleeper) that
- *    rush from the vanishing point along that same geometry, as if the
- *    camera is dollying forward through the bore.
- * 3. A sparser, independently-timed layer of wall-mounted light fixtures
- *    (bracket, lamp, glow) — spaced further apart than the structural rings,
- *    exactly like real tunnel lighting — giving the scene true parallax
- *    instead of everything moving in lockstep.
+ * 1. A STATIC perspective skeleton — the tunnel mouth frame (the same
+ *    single-arc vault used by the animated rings), a handful of structural
+ *    lines converging on the vanishing point, and a receding rail track
+ *    with tightening sleeper spacing — the classic draughtsman's trick for
+ *    faking depth on paper. This is what makes the scene read as a tunnel
+ *    rather than a stack of expanding circles.
+ * 2. A slow stream of smooth precast lining rings — each a single arched
+ *    profile plus a faint inner secondary lining and a floor sleeper —
+ *    drifting from the vanishing point toward the viewer.
+ * 3. A sparser, independently-timed layer of soft wall lighting recessed
+ *    at the springline (where the straight wall turns into the vault),
+ *    spaced further apart than the rings and much lower in intensity than
+ *    a lit fixture — closer to the gentle sodium wash real tunnel lights
+ *    throw across a curved wall than a bulb floating in space.
  *
- * A slow, near-imperceptible camera sway is layered on top of all of it.
- * Nothing here shares a common period: ring count/duration and light
- * count/duration are deliberately non-multiples, so the composition never
- * settles into a visible repeat.
+ * A slow, near-imperceptible camera sway sits on top of all of it. Ring
+ * and light counts/durations are deliberately non-multiples, so the
+ * composition never settles into a visible repeat.
  */
 function TunnelAperture() {
-  const RING_COUNT = 12;
-  const RING_DURATION = 8.6; // seconds
+  const RING_COUNT = 9;
+  const RING_DURATION = 15.5; // seconds — slow, unhurried drift
   const rings = Array.from({ length: RING_COUNT });
 
-  const LIGHT_COUNT = 7;
-  const LIGHT_DURATION = 11.3; // seconds — intentionally not a multiple of RING_DURATION
+  const LIGHT_COUNT = 6;
+  const LIGHT_DURATION = 20.5; // seconds — intentionally not a multiple of RING_DURATION
   const lights = Array.from({ length: LIGHT_COUNT });
 
   // Vanishing point and the tunnel-mouth anchor points, in a 0–1000×0–600
@@ -390,12 +407,7 @@ function TunnelAperture() {
   const mouthRightSpring: [number, number] = [860, 320];
   const mouthLeftFloor: [number, number] = [260, 600];
   const mouthRightFloor: [number, number] = [740, 600];
-  const mouthLeftQuarter: [number, number] = [300, 90];
-  const mouthRightQuarter: [number, number] = [700, 90];
-  const structuralLines = [
-    mouthApex, mouthLeftSpring, mouthRightSpring,
-    mouthLeftFloor, mouthRightFloor, mouthLeftQuarter, mouthRightQuarter,
-  ];
+  const structuralLines = [mouthLeftSpring, mouthRightSpring, mouthLeftFloor, mouthRightFloor];
 
   const railLeftNear: [number, number] = [420, 600];
   const railRightNear: [number, number] = [580, 600];
@@ -404,6 +416,12 @@ function TunnelAperture() {
   const railRightFar = lerpPt(railRightNear, VP, railStopT);
   const tieTs = [0.06, 0.18, 0.32, 0.48];
 
+  // The ring cross-section, shared by every animated ring and (at a larger
+  // scale) by the static mouth frame, so the whole scene reads as one
+  // consistent arched vault.
+  const ringOuter = archPath(340, 260, 10, 40);
+  const ringInner = archPath(340, 260, 30, 60);
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
       {/* deep navy field, the "as-built drawing" backdrop */}
@@ -411,13 +429,13 @@ function TunnelAperture() {
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 44%, rgba(56,189,248,0.16) 0%, rgba(56,189,248,0) 55%), linear-gradient(180deg, #050b18 0%, #0a1a33 45%, #0f2447 100%)',
+            'radial-gradient(circle at 50% 44%, rgba(56,189,248,0.14) 0%, rgba(56,189,248,0) 55%), linear-gradient(180deg, #050b18 0%, #0a1a33 45%, #0f2447 100%)',
         }}
       />
 
       {/* faint drafting-table grid, drifting slowly for ambient depth */}
       <BlueprintGrid
-        className="absolute -inset-[10%] opacity-[0.08]"
+        className="absolute -inset-[10%] opacity-[0.07]"
         line="rgba(125,211,252,0.9)"
         size={64}
         drift
@@ -426,45 +444,46 @@ function TunnelAperture() {
       {/* everything structural rides together on one very slow camera sway */}
       <div className="tunnel-cam-sway">
 
-        {/* 1 — static perspective skeleton: mouth frame + converging structural
-            lines + a receding rail with tightening sleeper spacing */}
+        {/* 1 — static perspective skeleton: one continuous arched mouth
+            frame + converging structural lines + a receding rail with
+            tightening sleeper spacing */}
         <svg
           className="tunnel-perspective-lines"
           viewBox="0 0 1000 600"
           preserveAspectRatio="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          {/* tunnel-mouth frame, the near edge the rings are born from */}
+          {/* tunnel-mouth frame — a single smooth vault, the near edge the rings are born from */}
           <path
-            d={`M${mouthLeftSpring[0]},${mouthLeftSpring[1]} Q${mouthApex[0]},-40 ${mouthRightSpring[0]},${mouthRightSpring[1]}`}
-            fill="none" stroke="rgba(125,211,252,0.28)" strokeWidth="1.5"
+            d={`M${mouthLeftSpring[0]},${mouthLeftSpring[1]} A${(mouthRightSpring[0]-mouthLeftSpring[0])/2},${mouthLeftSpring[1]-mouthApex[1]} 0 0 1 ${mouthRightSpring[0]},${mouthRightSpring[1]}`}
+            fill="none" stroke="rgba(125,211,252,0.26)" strokeWidth="1.5"
           />
-          <line x1={mouthLeftSpring[0]} y1={mouthLeftSpring[1]} x2={mouthLeftFloor[0]} y2={mouthLeftFloor[1]} stroke="rgba(125,211,252,0.22)" strokeWidth="1.5" />
-          <line x1={mouthRightSpring[0]} y1={mouthRightSpring[1]} x2={mouthRightFloor[0]} y2={mouthRightFloor[1]} stroke="rgba(125,211,252,0.22)" strokeWidth="1.5" />
-          <line x1={mouthLeftFloor[0]} y1={mouthLeftFloor[1]} x2={mouthRightFloor[0]} y2={mouthRightFloor[1]} stroke="rgba(125,211,252,0.16)" strokeWidth="1.5" />
+          <line x1={mouthLeftSpring[0]} y1={mouthLeftSpring[1]} x2={mouthLeftFloor[0]} y2={mouthLeftFloor[1]} stroke="rgba(125,211,252,0.2)" strokeWidth="1.5" />
+          <line x1={mouthRightSpring[0]} y1={mouthRightSpring[1]} x2={mouthRightFloor[0]} y2={mouthRightFloor[1]} stroke="rgba(125,211,252,0.2)" strokeWidth="1.5" />
+          <line x1={mouthLeftFloor[0]} y1={mouthLeftFloor[1]} x2={mouthRightFloor[0]} y2={mouthRightFloor[1]} stroke="rgba(125,211,252,0.14)" strokeWidth="1.5" />
 
           {/* structural lines converging on the vanishing point */}
           {structuralLines.map((p, i) => (
-            <line key={`sl-${i}`} x1={VP[0]} y1={VP[1]} x2={p[0]} y2={p[1]} stroke="rgba(125,211,252,0.14)" strokeWidth="1" />
+            <line key={`sl-${i}`} x1={VP[0]} y1={VP[1]} x2={p[0]} y2={p[1]} stroke="rgba(125,211,252,0.12)" strokeWidth="1" />
           ))}
 
           {/* receding rail track with sleepers that tighten toward the vanishing point */}
-          <line x1={railLeftNear[0]} y1={railLeftNear[1]} x2={railLeftFar[0]} y2={railLeftFar[1]} stroke="rgba(125,211,252,0.3)" strokeWidth="1.5" />
-          <line x1={railRightNear[0]} y1={railRightNear[1]} x2={railRightFar[0]} y2={railRightFar[1]} stroke="rgba(125,211,252,0.3)" strokeWidth="1.5" />
+          <line x1={railLeftNear[0]} y1={railLeftNear[1]} x2={railLeftFar[0]} y2={railLeftFar[1]} stroke="rgba(125,211,252,0.28)" strokeWidth="1.5" />
+          <line x1={railRightNear[0]} y1={railRightNear[1]} x2={railRightFar[0]} y2={railRightFar[1]} stroke="rgba(125,211,252,0.28)" strokeWidth="1.5" />
           {tieTs.map((t, i) => {
             const l = lerpPt(railLeftNear, VP, t);
             const r = lerpPt(railRightNear, VP, t);
-            return <line key={`tie-${i}`} x1={l[0]} y1={l[1]} x2={r[0]} y2={r[1]} stroke="rgba(125,211,252,0.22)" strokeWidth="1.5" />;
+            return <line key={`tie-${i}`} x1={l[0]} y1={l[1]} x2={r[0]} y2={r[1]} stroke="rgba(125,211,252,0.2)" strokeWidth="1.5" />;
           })}
 
           {/* survey crosshair at the vanishing point + two engineering callouts, purely atmospheric */}
-          <line x1={VP[0] - 14} y1={VP[1]} x2={VP[0] + 14} y2={VP[1]} stroke="rgba(224,247,255,0.35)" strokeWidth="1" />
-          <line x1={VP[0]} y1={VP[1] - 14} x2={VP[0]} y2={VP[1] + 14} stroke="rgba(224,247,255,0.35)" strokeWidth="1" />
-          <text x="70" y="575" fill="rgba(125,211,252,0.32)" fontSize="13" fontFamily="monospace" letterSpacing="1">D 6.20M</text>
-          <text x="930" y="55" fill="rgba(125,211,252,0.28)" fontSize="13" fontFamily="monospace" letterSpacing="1" textAnchor="end">STA 12+450</text>
+          <line x1={VP[0] - 14} y1={VP[1]} x2={VP[0] + 14} y2={VP[1]} stroke="rgba(224,247,255,0.3)" strokeWidth="1" />
+          <line x1={VP[0]} y1={VP[1] - 14} x2={VP[0]} y2={VP[1] + 14} stroke="rgba(224,247,255,0.3)" strokeWidth="1" />
+          <text x="70" y="575" fill="rgba(125,211,252,0.28)" fontSize="13" fontFamily="monospace" letterSpacing="1">D 6.20M</text>
+          <text x="930" y="55" fill="rgba(125,211,252,0.24)" fontSize="13" fontFamily="monospace" letterSpacing="1" textAnchor="end">STA 12+450</text>
         </svg>
 
-        {/* 2 — dense stream of segmented precast lining rings, rushing along
+        {/* 2 — slow stream of smooth arched lining rings, drifting along
             that geometry from the vanishing point toward the viewer */}
         <div className="tunnel-fly-stage">
           {rings.map((_, i) => (
@@ -474,40 +493,29 @@ function TunnelAperture() {
               style={{ animationDelay: `${i * (RING_DURATION / RING_COUNT)}s`, animationDuration: `${RING_DURATION}s` }}
             >
               <svg className="tunnel-fly-arch" viewBox="0 0 340 260" xmlns="http://www.w3.org/2000/svg">
-                {/* outer lining: nine straight precast segments forming the horseshoe profile */}
-                <path
-                  d="M40,250 L40,150 L58.8,80 L110,28.8 L180,10 L250,28.8 L301.2,80 L320,150 L320,250"
-                  fill="none" stroke="rgba(125,211,252,0.55)" strokeWidth="2"
-                />
-                <line x1="40" y1="250" x2="320" y2="250" stroke="rgba(125,211,252,0.4)" strokeWidth="2" />
+                {/* outer lining: one continuous arched vault, no facets */}
+                <path d={ringOuter} fill="none" stroke="rgba(125,211,252,0.42)" strokeWidth="2" strokeLinecap="round" />
+                <line x1="40" y1="250" x2="300" y2="250" stroke="rgba(125,211,252,0.3)" strokeWidth="2" strokeLinecap="round" />
 
-                {/* segment joints — a bolt mark at every panel boundary */}
-                {[[40,250],[40,150],[58.8,80],[110,28.8],[180,10],[250,28.8],[301.2,80],[320,150],[320,250]].map(([cx, cy], j) => (
-                  <circle key={j} cx={cx} cy={cy} r="2.4" fill="rgba(224,247,255,0.65)" />
-                ))}
-
-                {/* inner secondary lining, drafted as a dashed as-built reference */}
-                <path
-                  d="M60,230 L60,150 L76.1,90 L120,46.1 L180,30 L240,46.1 L283.9,90 L300,150 L300,230"
-                  fill="none" stroke="rgba(56,189,248,0.22)" strokeWidth="1" strokeDasharray="4 7"
-                />
-                <line x1="60" y1="230" x2="300" y2="230" stroke="rgba(56,189,248,0.18)" strokeWidth="1" strokeDasharray="4 7" />
+                {/* inner secondary lining, drafted as a dashed as-built reference, following the same arc */}
+                <path d={ringInner} fill="none" stroke="rgba(56,189,248,0.18)" strokeWidth="1" strokeDasharray="4 7" />
+                <line x1="60" y1="230" x2="280" y2="230" stroke="rgba(56,189,248,0.15)" strokeWidth="1" strokeDasharray="4 7" />
 
                 {/* floor sleeper, keeping the rail track legible ring by ring */}
-                <rect x="165" y="246" width="30" height="7" rx="1" fill="none" stroke="rgba(125,211,252,0.32)" strokeWidth="1" />
+                <rect x="155" y="246" width="30" height="7" rx="2" fill="none" stroke="rgba(125,211,252,0.26)" strokeWidth="1" />
               </svg>
             </div>
           ))}
         </div>
 
-        {/* 3 — sparse, independently-timed wall lights: true parallax, not
-            locked to the same rhythm as the structural rings */}
+        {/* 3 — sparse, independently-timed wall lighting: a soft recessed
+            glow at the springline on alternating sides, true parallax and
+            far gentler than a lit fixture */}
         <div className="tunnel-fly-stage">
           {lights.map((_, i) => {
             const onLeft = i % 2 === 0;
             const gradId = `tunnel-light-glow-${i}`;
-            const bulbX = onLeft ? 30 : 310;
-            const bracketX = onLeft ? 34 : 286;
+            const glowX = onLeft ? 46 : 294;
             return (
               <div
                 key={`light-${i}`}
@@ -517,13 +525,13 @@ function TunnelAperture() {
                 <svg className="tunnel-fly-arch" viewBox="0 0 340 260" xmlns="http://www.w3.org/2000/svg">
                   <defs>
                     <radialGradient id={gradId} cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="rgba(186,230,253,0.5)" />
+                      <stop offset="0%" stopColor="rgba(186,230,253,0.24)" />
+                      <stop offset="60%" stopColor="rgba(186,230,253,0.08)" />
                       <stop offset="100%" stopColor="rgba(186,230,253,0)" />
                     </radialGradient>
                   </defs>
-                  <ellipse cx={bulbX} cy="149" rx="55" ry="90" fill={`url(#${gradId})`} />
-                  <rect x={bracketX} y="145" width="20" height="8" rx="1.5" fill="rgba(125,211,252,0.22)" stroke="rgba(125,211,252,0.4)" strokeWidth="0.5" />
-                  <circle cx={bulbX} cy="149" r="5" fill="rgba(224,247,255,0.95)" />
+                  <ellipse cx={glowX} cy="150" rx="46" ry="78" fill={`url(#${gradId})`} />
+                  <circle cx={glowX} cy="150" r="2.2" fill="rgba(224,247,255,0.55)" />
                 </svg>
               </div>
             );
