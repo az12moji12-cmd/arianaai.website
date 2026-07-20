@@ -184,8 +184,8 @@ function MotifStyles() {
       /* ---------------------------------------------------------------- */
       /* Tunnel drive-through — hero signature motion                     */
       /* This is a genuine CSS 3D scene, not a simulated one: a real      */
-      /* `perspective` is set on the stage and every ring lives on the Z  */
-      /* axis via `translateZ`, so the browser's own 3D engine computes   */
+      /* 'perspective' is set on the stage and every ring lives on the Z  */
+      /* axis via 'translateZ', so the browser's own 3D engine computes   */
       /* the foreshortening. Rings born at the vanishing point drift      */
       /* toward the camera and swell exactly the way real geometry would, */
       /* a lit "girder" ring recurs every few segments the way luminaire  */
