@@ -430,6 +430,22 @@ function severityShadingFor(text: string): { fill: string; textColor: string } |
   }
 }
 
+// نویسه نامرئی «علامت راست‌به‌چپ» (RLM) — قبل و بعد از نویسه‌های خنثی مانند
+// پرانتز و گیومه درج می‌شود تا موتور بایدی Word این نویسه‌ها را همیشه در
+// جهت متن فارسی (راست‌به‌چپ) تفسیر کند، حتی وقتی این نویسه‌ها کنار اعداد
+// یا واژه‌های لاتین قرار گرفته‌اند. بدون این اصلاح، پرانتزها و علائم گاهی
+// در فایل Word خروجی برعکس (آینه‌ای) نمایش داده می‌شوند.
+const RLM = "\u200F";
+function fixRtlPunctuation(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\(/g, `${RLM}(`)
+    .replace(/\)/g, `)${RLM}`)
+    .replace(/«/g, `${RLM}«`)
+    .replace(/»/g, `»${RLM}`)
+    .replace(/[[\]]/g, (m) => `${RLM}${m}${RLM}`);
+}
+
 // deno-lint-ignore no-explicit-any
 function textRunsFromInline(node: any, bold = false, italics = false, color?: string): TextRun[] {
   const runs: TextRun[] = [];
@@ -438,7 +454,7 @@ function textRunsFromInline(node: any, bold = false, italics = false, color?: st
   // deno-lint-ignore no-explicit-any
   for (const child of children as any[]) {
     if (child.nodeType === 3) {
-      const text = String(child.textContent || "").replace(/[\r\n\t]+/g, " ");
+      const text = fixRtlPunctuation(String(child.textContent || "").replace(/[\r\n\t]+/g, " "));
       if (text.length === 0) continue;
       if (text.trim().length === 0) {
         runs.push(new TextRun({ text: " ", font: BODY_FONT, size: BODY_SIZE, bold, italics, rightToLeft: true, ...(color ? { color } : {}) }));
@@ -488,7 +504,7 @@ function buildList(listEl: any, ordered: boolean, level: number): Paragraph[] {
     // deno-lint-ignore no-explicit-any
     for (const dc of directChildren as any[]) {
       if (dc.nodeType === 3) {
-        const text = String(dc.textContent || "").replace(/[\r\n\t]+/g, " ");
+        const text = fixRtlPunctuation(String(dc.textContent || "").replace(/[\r\n\t]+/g, " "));
         if (text.trim().length > 0) {
           runs.push(new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT, rightToLeft: true }));
         }
@@ -563,7 +579,7 @@ function buildTable(tableEl: any): Table {
       if (runs.length === 0) {
         runs = [
           new TextRun({
-            text: cellText,
+            text: fixRtlPunctuation(cellText),
             font: BODY_FONT,
             size: BODY_SIZE,
             bold: isHeaderRow,
@@ -627,7 +643,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
   if (!node) return [];
 
   if (node.nodeType === 3) {
-    const text = String(node.textContent || "").trim();
+    const text = fixRtlPunctuation(String(node.textContent || "").trim());
     if (!text) return [];
     return [
       new Paragraph({
@@ -801,7 +817,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
-              children: [new TextRun({ text: value, font: BODY_FONT, size: 22, color: C_TEXT })],
+              children: [new TextRun({ text: fixRtlPunctuation(value), font: BODY_FONT, size: 22, color: C_TEXT })],
             }),
           ],
         }),
@@ -865,7 +881,7 @@ function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
       alignment: AlignmentType.CENTER,
       bidirectional: true,
       spacing: { after: 1000 },
-      children: [new TextRun({ text: report.reportTitle, font: HEADING_FONT, size: 28, bold: true, color: C_PRIMARY_MD })],
+      children: [new TextRun({ text: fixRtlPunctuation(report.reportTitle), font: HEADING_FONT, size: 28, bold: true, color: C_PRIMARY_MD })],
     }),
 
     // جدول اطلاعات سند
@@ -885,7 +901,7 @@ function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
       spacing: { before: 200 },
       children: [
         new TextRun({
-          text: report.confidentiality || DEFAULT_CONFIDENTIALITY,
+          text: fixRtlPunctuation(report.confidentiality || DEFAULT_CONFIDENTIALITY),
           font: BODY_FONT,
           size: 18,
           italics: true,
@@ -924,7 +940,9 @@ function buildTocIntro(): Array<Paragraph | TableOfContents> {
 }
 
 function buildHeader(report: ReportData): Header {
-  const shortTitle = report.reportTitle.length > 60 ? report.reportTitle.slice(0, 60) + "…" : report.reportTitle;
+  const shortTitle = fixRtlPunctuation(
+    report.reportTitle.length > 60 ? report.reportTitle.slice(0, 60) + "…" : report.reportTitle,
+  );
   return new Header({
     children: [
       new Paragraph({
