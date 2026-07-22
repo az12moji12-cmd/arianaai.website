@@ -34,6 +34,8 @@ interface ResultItem {
   docxUrl?: string;
   docxFilename?: string;
   errorMessage?: string;
+  // پیام متنی برای زمانی که هیچ بند ارزش‌افزایی پیدا نشده و فایلی ساخته نمی‌شود
+  message?: string;
 }
 
 async function fileToUploadedFile(file: File): Promise<UploadedFile> {
@@ -194,6 +196,7 @@ export default function DraftReview() {
       const decoder = new TextDecoder();
       let buffer = '';
       let docxReceived = false;
+      let messageReceived = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -233,6 +236,13 @@ export default function DraftReview() {
                     : r
                 )
               );
+            } else if (parsed.message) {
+              messageReceived = true;
+              setResults((prev) =>
+                prev.map((r) =>
+                  r.id === resultId ? { ...r, status: 'done', message: parsed.message } : r
+                )
+              );
             }
           } catch (e) {
             if (e instanceof Error && e.message !== data) throw e;
@@ -240,7 +250,7 @@ export default function DraftReview() {
         }
       }
 
-      if (!docxReceived) {
+      if (!docxReceived && !messageReceived) {
         setResults((prev) =>
           prev.map((r) =>
             r.id === resultId
@@ -496,6 +506,14 @@ export default function DraftReview() {
                         دانلود
                       </a>
                     </div>
+                  </div>
+                  <p className="text-xs text-navy-300 mt-1">{r.timestamp}</p>
+                </div>
+              ) : r.status === 'done' && r.message ? (
+                <div className="max-w-md w-full">
+                  <div className="bg-sky-50 border border-sky-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-start gap-2.5">
+                    <FileCheck2 size={16} className="text-sky-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm leading-relaxed text-navy-700">{r.message}</p>
                   </div>
                   <p className="text-xs text-navy-300 mt-1">{r.timestamp}</p>
                 </div>
