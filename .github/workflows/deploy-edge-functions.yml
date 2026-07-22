@@ -23,9 +23,12 @@ jobs:
           sudo mv /tmp/supabase /usr/local/bin/supabase
           supabase --version
 
-      - name: Deploy Edge Function
+      - name: Deploy Edge Functions
         run: |
           supabase functions deploy analyze-contract \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} \
+            --no-verify-jwt
+          supabase functions deploy draft-review \
             --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} \
             --no-verify-jwt
         env:
