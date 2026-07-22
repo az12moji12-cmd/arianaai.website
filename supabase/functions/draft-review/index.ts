@@ -354,9 +354,9 @@ const OUTPUT_FORMAT_INSTRUCTIONS = `
 ────────────────────────────────────────
 دستورالعمل الزامی قالب خروجی فنی (Output Contract)
 ────────────────────────────────────────
-در تمام جدول‌های گزارش، محتوای هر سلول باید به‌صورت جمله یا پاراگراف کوتاه، روان و رسمی نوشته شود؛ نه به‌صورت عبارت اسمی، تیتر، کلیدواژه یا فهرست‌وار. از نوشتن عبارات ناقص یا تلگرافی خودداری کن و آن‌ها را به جملات کامل و حرفه‌ای تبدیل کن.
+خروجی نهایی شما مستقیماً توسط یک سامانه خودکار خوانده و به یک فایل Word ساده و معمولی (بدون صفحه جلد، بدون فهرست مطالب، بدون قالب گزارش رسمی) تبدیل می‌شود. رعایت دقیق و بدون استثنای قواعد زیر الزامی است.
 
-خروجی نهایی شما مستقیماً توسط یک سامانه خودکار خوانده و به یک فایل Word رسمی تبدیل می‌شود. رعایت دقیق و بدون استثنای قواعد زیر الزامی است.
+این یک گزارش تحلیلی نیست. شما فقط باید قراردادهای مرجع را با پیش‌نویس مقایسه کنی و بندهایی را که واقعاً در قراردادهای مرجع وجود دارند اما در پیش‌نویس نیامده‌اند (به‌ویژه بندهایی که به نفع شرکت تونل سد آریانا هستند) استخراج و گزارش کنی. هرگز از خودت بند، پیشنهاد اختیاری یا توصیه‌ای که در متن قراردادهای مرجع وجود ندارد نساز و ارائه نده؛ عبارات مشاوره‌ای مانند «بهتر است...»، «می‌توانید...» یا پیشنهادهای ابداعی ممنوع است. فقط بندهای واقعی و موجود در قراردادهای مرجع که در پیش‌نویس غایب یا ضعیف‌تر هستند گزارش شوند.
 
 ۱. خروجی شما باید فقط و فقط یک شیء JSON معتبر (valid JSON) باشد. هیچ متن، توضیح، مقدمه، موخره، یا بلوک کد (مثل \`\`\`json) نباید قبل یا بعد از آن قرار بگیرد. اولین کاراکتر خروجی باید { و آخرین کاراکتر باید } باشد.
 
@@ -990,6 +990,25 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
   });
 }
 
+// سربرگ ساده در بالای فایل معمولی (بدون صفحه جلد و فهرست)
+function buildSimpleHeading(_report: ReportData): Paragraph[] {
+  return [
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: { after: 60 },
+      children: [new TextRun({ text: COMPANY_NAME, font: HEADING_FONT, size: 22, bold: true, color: C_PRIMARY })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: { after: 200 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: C_PRIMARY_MD, space: 4 } },
+      children: [new TextRun({ text: COMPANY_SUBTITLE, font: BODY_FONT, size: 16, color: C_TEXT_LIGHT })],
+    }),
+  ];
+}
+
 function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
   const dateStr = new Date().toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" });
 
@@ -1245,17 +1264,11 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
     },
     sections: [
       {
-        properties: { page: { margin } },
-        children: buildCoverPage(report),
-      },
-      {
         properties: {
-          type: SectionType.NEXT_PAGE,
           page: { margin, pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL } },
         },
-        headers: { default: buildHeader(report) },
         footers: { default: buildFooter() },
-        children: [...buildTocIntro(), ...bodyElements],
+        children: [...buildSimpleHeading(report), ...bodyElements],
       },
     ],
   });
