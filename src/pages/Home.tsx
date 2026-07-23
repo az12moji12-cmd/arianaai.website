@@ -48,7 +48,7 @@ const FEATURES = [
     icon: PenTool,
     title: 'پیش‌نویس',
     description:
-      'بارگذاری چند قرارداد مرجع و یک پیش‌نویس در حال بررسی؛ سامانه بندهای مفید به نفع آریانا که در قراردادهای مرجع وجود دارد ولی در پیش‌نویس نیامده را استخراج و در قالب گزارش Word ارائه می‌کند.',
+      'بارگذاری قراردادهای مرجع و پیش‌نویس مورد بررسی؛ استخراج بندهای مفید به نفع آریانا و ارائه گزارش Word.',
     tags: ['تطبیق قراردادها', 'استخراج بندهای مفید', 'گزارش Word'],
     color: 'from-sky-600 to-sky-800',
     lightColor: 'bg-sky-50',
@@ -787,10 +787,10 @@ export default function Home() {
                         className={`absolute -inset-px rounded-3xl bg-gradient-to-l ${feature.color} opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-500`}
                         aria-hidden="true"
                       />
-                      <div className="relative bg-white rounded-3xl h-full">
+                      <div className="relative bg-white rounded-3xl h-full flex flex-col">
                         <div className={`h-1.5 bg-gradient-to-l ${feature.color}`} />
 
-                        <div className="p-7">
+                        <div className="p-7 flex-1 flex flex-col">
                           <div className="flex items-start justify-between mb-6">
                             <div className={`w-16 h-16 ${feature.iconBg} rounded-2xl flex items-center justify-center shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3`}>
                               <Icon size={30} className={feature.accentColor} />
@@ -814,7 +814,7 @@ export default function Home() {
                             ))}
                           </div>
 
-                          <div className="flex items-center gap-2 text-sm font-semibold text-navy-600 group-hover:gap-3 transition-all">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-navy-600 group-hover:gap-3 transition-all mt-auto pt-4">
                             <span>ورود به بخش</span>
                             <ArrowLeft size={16} className="group-hover:translate-x-[-4px] transition-transform" />
                           </div>
