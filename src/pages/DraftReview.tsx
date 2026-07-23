@@ -11,6 +11,10 @@ import {
   FileCheck2,
   Send,
   Trash2,
+  CheckCircle2,
+  UploadCloud,
+  AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
@@ -34,8 +38,17 @@ interface ResultItem {
   docxUrl?: string;
   docxFilename?: string;
   errorMessage?: string;
-  // پیام متنی برای زمانی که هیچ بند ارزش‌افزایی پیدا نشده و فایلی ساخته نمی‌شود
-  message?: string;
+}
+
+function extOf(name: string) {
+  return name.split('.').pop()?.toLowerCase() || '';
+}
+
+function fileAccentColor(name: string) {
+  const ext = extOf(name);
+  if (ext === 'pdf') return { text: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-200' };
+  if (ext === 'docx' || ext === 'doc') return { text: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-200' };
+  return { text: 'text-navy-500', bg: 'bg-navy-50', border: 'border-navy-200' };
 }
 
 async function fileToUploadedFile(file: File): Promise<UploadedFile> {
@@ -91,12 +104,17 @@ export default function DraftReview() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ResultItem[]>([]);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isDraggingRef, setIsDraggingRef] = useState(false);
+  const [isDraggingDraft, setIsDraggingDraft] = useState(false);
 
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
 
   const canSubmit = referenceFiles.length > 0 && !!draftFile && !loading;
+  const step1Done = referenceFiles.length > 0;
+  const step2Done = !!draftFile;
+  const progressPct = ((step1Done ? 1 : 0) + (step2Done ? 1 : 0)) * 50;
 
   const handleLogoClick = () => {
     if (loading) return;
@@ -107,19 +125,41 @@ export default function DraftReview() {
     }
   };
 
-  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const processReferenceFiles = async (files: File[]) => {
+    if (files.length === 0) return;
     const uploaded = await Promise.all(files.map(fileToUploadedFile));
     setReferenceFiles((prev) => [...prev, ...uploaded]);
+  };
+
+  const processDraftFile = async (file?: File) => {
+    if (!file) return;
+    const uploaded = await fileToUploadedFile(file);
+    setDraftFile(uploaded);
+  };
+
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    await processReferenceFiles(files);
     if (referenceInputRef.current) referenceInputRef.current.value = '';
   };
 
   const handleDraftUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const uploaded = await fileToUploadedFile(file);
-    setDraftFile(uploaded);
+    await processDraftFile(e.target.files?.[0]);
     if (draftInputRef.current) draftInputRef.current.value = '';
+  };
+
+  const handleReferenceDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingRef(false);
+    if (loading) return;
+    await processReferenceFiles(Array.from(e.dataTransfer.files || []));
+  };
+
+  const handleDraftDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingDraft(false);
+    if (loading) return;
+    await processDraftFile(e.dataTransfer.files?.[0]);
   };
 
   const removeReferenceFile = (id: string) => {
@@ -196,7 +236,6 @@ export default function DraftReview() {
       const decoder = new TextDecoder();
       let buffer = '';
       let docxReceived = false;
-      let messageReceived = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -236,13 +275,6 @@ export default function DraftReview() {
                     : r
                 )
               );
-            } else if (parsed.message) {
-              messageReceived = true;
-              setResults((prev) =>
-                prev.map((r) =>
-                  r.id === resultId ? { ...r, status: 'done', message: parsed.message } : r
-                )
-              );
             }
           } catch (e) {
             if (e instanceof Error && e.message !== data) throw e;
@@ -250,7 +282,7 @@ export default function DraftReview() {
         }
       }
 
-      if (!docxReceived && !messageReceived) {
+      if (!docxReceived) {
         setResults((prev) =>
           prev.map((r) =>
             r.id === resultId
@@ -283,10 +315,37 @@ export default function DraftReview() {
 
   return (
     <div className="chat-screen flex flex-col bg-white" dir="rtl">
+      <style>{`
+        @keyframes drOverviewIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes drChipIn {
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes drShimmer {
+          from { background-position: 200% 0; }
+          to { background-position: -200% 0; }
+        }
+        @keyframes drGlowPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.35); }
+          50% { box-shadow: 0 0 0 8px rgba(2, 132, 199, 0); }
+        }
+        .dr-fade-in { animation: drOverviewIn 0.35s ease both; }
+        .dr-chip-in { animation: drChipIn 0.22s ease both; }
+        .dr-shimmer {
+          background: linear-gradient(90deg, #e5edf9 25%, #f3f7fd 37%, #e5edf9 63%);
+          background-size: 200% 100%;
+          animation: drShimmer 1.6s ease-in-out infinite;
+        }
+        .dr-glow { animation: drGlowPulse 2.2s ease-in-out infinite; }
+      `}</style>
+
       {/* Header */}
-      <div className="border-b border-gray-100 bg-white px-4 md:px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0">
+      <div className="border-b border-gray-100 bg-white/90 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0 sticky top-0 z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-600 to-navy-700 flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-600 to-navy-700 flex items-center justify-center flex-shrink-0 shadow-sm shadow-sky-900/10">
             <GitCompare size={16} className="text-white" />
           </div>
           <div>
@@ -297,13 +356,13 @@ export default function DraftReview() {
         <button
           onClick={handleLogoClick}
           disabled={loading}
-          className="hover:opacity-80 transition-opacity disabled:pointer-events-none disabled:opacity-40"
+          className="hover:opacity-80 active:scale-95 transition-all disabled:pointer-events-none disabled:opacity-40"
           title="بازگشت به صفحه اول"
         >
           <img
             src="/tunnelsaddariana_logo.jpg"
             alt="لوگو"
-            className="w-8 h-8 rounded-lg object-contain cursor-pointer"
+            className="w-8 h-8 rounded-lg object-contain cursor-pointer ring-1 ring-black/5"
           />
         </button>
       </div>
@@ -312,9 +371,12 @@ export default function DraftReview() {
       <div className="flex-1 overflow-y-auto bg-gray-50 px-4 md:px-12 lg:px-24 py-6">
         <div className="max-w-3xl mx-auto space-y-5">
           {results.length === 0 && (
-            <div className="flex flex-col items-center justify-center text-center py-6">
-              <div className="w-20 h-20 bg-gradient-to-br from-sky-600 to-navy-700 rounded-3xl flex items-center justify-center mb-5 shadow-lg">
-                <GitCompare size={36} className="text-white" />
+            <div className="flex flex-col items-center justify-center text-center py-6 dr-fade-in">
+              <div className="relative w-20 h-20 mb-5">
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-sky-600 to-navy-700 blur-lg opacity-30" />
+                <div className="relative w-20 h-20 bg-gradient-to-br from-sky-600 to-navy-700 rounded-3xl flex items-center justify-center shadow-lg shadow-navy-900/20">
+                  <GitCompare size={36} className="text-white" />
+                </div>
               </div>
               <h2 className="text-2xl font-bold text-navy-900 mb-2">پیش‌نویس</h2>
               <p className="text-navy-400 max-w-md text-sm leading-relaxed">
@@ -325,11 +387,23 @@ export default function DraftReview() {
             </div>
           )}
 
+          {/* Progress bar */}
+          <div className="h-1 rounded-full bg-gray-200 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-l from-sky-600 to-navy-700 transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
           {/* Step 1: Reference contracts */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-full bg-navy-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-                ۱
+              <div
+                className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 transition-colors duration-300 ${
+                  step1Done ? 'bg-emerald-500 text-white' : 'bg-navy-700 text-white'
+                }`}
+              >
+                {step1Done ? <CheckCircle2 size={14} /> : '۱'}
               </div>
               <h3 className="text-sm font-bold text-navy-900">قراردادهای مرجع</h3>
               <span className="text-xs text-navy-400">(چند فایل مجاز است)</span>
@@ -344,44 +418,62 @@ export default function DraftReview() {
               className="hidden"
             />
 
-            <button
-              onClick={() => referenceInputRef.current?.click()}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-navy-400 hover:bg-navy-50 rounded-xl py-4 text-sm text-navy-500 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            <div
+              onClick={() => !loading && referenceInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); if (!loading) setIsDraggingRef(true); }}
+              onDragLeave={() => setIsDraggingRef(false)}
+              onDrop={handleReferenceDrop}
+              className={`w-full flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl py-5 text-sm font-medium transition-all duration-200 cursor-pointer ${
+                loading
+                  ? 'opacity-50 cursor-not-allowed border-gray-200 text-navy-400'
+                  : isDraggingRef
+                  ? 'border-navy-500 bg-navy-50 scale-[1.01] text-navy-700'
+                  : 'border-gray-200 hover:border-navy-400 hover:bg-navy-50/60 text-navy-500'
+              }`}
             >
-              <Paperclip size={16} />
-              افزودن قرارداد(های) مرجع
-            </button>
+              <UploadCloud size={20} className={isDraggingRef ? 'text-navy-600' : 'text-navy-400'} />
+              <span className="flex items-center gap-1.5">
+                <Paperclip size={13} />
+                افزودن قرارداد(های) مرجع
+              </span>
+            </div>
 
             {referenceFiles.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
-                {referenceFiles.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-1.5 bg-navy-50 border border-navy-200 rounded-lg px-2.5 py-1.5 text-xs text-navy-700"
-                  >
-                    <FileText size={12} className="text-navy-500 flex-shrink-0" />
-                    <span className="truncate max-w-[140px] md:max-w-xs">{file.name}</span>
-                    {!loading && (
-                      <button
-                        onClick={() => removeReferenceFile(file.id)}
-                        className="p-0.5 hover:bg-navy-200 rounded transition-colors flex-shrink-0"
-                        title="حذف فایل"
-                      >
-                        <X size={11} className="text-navy-500" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {referenceFiles.map((file) => {
+                  const accent = fileAccentColor(file.name);
+                  return (
+                    <div
+                      key={file.id}
+                      className={`dr-chip-in flex items-center gap-1.5 ${accent.bg} border ${accent.border} rounded-lg px-2.5 py-1.5 text-xs text-navy-700`}
+                    >
+                      <FileText size={12} className={`${accent.text} flex-shrink-0`} />
+                      <span className="truncate max-w-[140px] md:max-w-xs">{file.name}</span>
+                      {!loading && (
+                        <button
+                          onClick={() => removeReferenceFile(file.id)}
+                          className="p-0.5 hover:bg-black/10 rounded-full transition-colors flex-shrink-0"
+                          title="حذف فایل"
+                        >
+                          <X size={11} className="text-navy-500" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* Step 2: Draft contract */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-full bg-navy-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-                ۲
+              <div
+                className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 transition-colors duration-300 ${
+                  step2Done ? 'bg-emerald-500 text-white' : 'bg-navy-700 text-white'
+                }`}
+              >
+                {step2Done ? <CheckCircle2 size={14} /> : '۲'}
               </div>
               <h3 className="text-sm font-bold text-navy-900">قرارداد پیش‌نویس در حال بررسی</h3>
               <span className="text-xs text-navy-400">(یک فایل)</span>
@@ -396,22 +488,33 @@ export default function DraftReview() {
             />
 
             {!draftFile ? (
-              <button
-                onClick={() => draftInputRef.current?.click()}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-sky-400 hover:bg-sky-50 rounded-xl py-4 text-sm text-navy-500 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              <div
+                onClick={() => !loading && draftInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); if (!loading) setIsDraggingDraft(true); }}
+                onDragLeave={() => setIsDraggingDraft(false)}
+                onDrop={handleDraftDrop}
+                className={`w-full flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl py-5 text-sm font-medium transition-all duration-200 cursor-pointer ${
+                  loading
+                    ? 'opacity-50 cursor-not-allowed border-gray-200 text-navy-400'
+                    : isDraggingDraft
+                    ? 'border-sky-500 bg-sky-50 scale-[1.01] text-navy-700'
+                    : 'border-gray-200 hover:border-sky-400 hover:bg-sky-50/60 text-navy-500'
+                }`}
               >
-                <FileCheck2 size={16} />
-                بارگذاری قرارداد پیش‌نویس
-              </button>
+                <UploadCloud size={20} className={isDraggingDraft ? 'text-sky-600' : 'text-sky-400'} />
+                <span className="flex items-center gap-1.5">
+                  <FileCheck2 size={14} />
+                  بارگذاری قرارداد پیش‌نویس
+                </span>
+              </div>
             ) : (
-              <div className="flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2.5 text-xs text-navy-700">
+              <div className="dr-chip-in flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2.5 text-xs text-navy-700">
                 <FileCheck2 size={14} className="text-sky-600 flex-shrink-0" />
                 <span className="truncate flex-1">{draftFile.name}</span>
                 {!loading && (
                   <button
                     onClick={removeDraftFile}
-                    className="p-1 hover:bg-sky-200 rounded transition-colors flex-shrink-0"
+                    className="p-1 hover:bg-sky-200 rounded-full transition-colors flex-shrink-0"
                     title="حذف فایل"
                   >
                     <Trash2 size={12} className="text-navy-500" />
@@ -422,7 +525,7 @@ export default function DraftReview() {
           </div>
 
           {/* Step 3: Optional instructions + submit */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-6 h-6 rounded-full bg-navy-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                 ۳
@@ -438,14 +541,18 @@ export default function DraftReview() {
               placeholder="در صورت نیاز، تمرکز خاصی برای بررسی مشخص کنید (مثلاً تمرکز بر بندهای مالی یا فسخ قرارداد)..."
               disabled={loading}
               rows={2}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-navy-400 focus:border-transparent text-sm resize-none bg-white disabled:bg-gray-50 disabled:text-navy-300 transition-colors"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-navy-400 focus:border-transparent text-sm resize-none bg-white disabled:bg-gray-50 disabled:text-navy-300 transition-all"
               style={{ fontSize: '16px' }}
             />
 
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="mt-3 w-full flex items-center justify-center gap-2 bg-navy-700 hover:bg-navy-800 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+              className={`mt-3 w-full flex items-center justify-center gap-2 text-white font-semibold px-4 py-3 rounded-xl transition-all shadow-sm ${
+                canSubmit
+                  ? 'bg-gradient-to-l from-sky-600 to-navy-700 hover:shadow-lg hover:shadow-navy-900/20 active:scale-[0.99]'
+                  : 'bg-navy-700 opacity-40 cursor-not-allowed'
+              }`}
             >
               {loading ? (
                 <>
@@ -463,26 +570,25 @@ export default function DraftReview() {
 
           {/* Results */}
           {results.map((r) => (
-            <div key={r.id} className="flex justify-start">
+            <div key={r.id} className="flex justify-start dr-fade-in">
               {r.status === 'loading' ? (
-                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm w-full max-w-md">
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm w-full max-w-md overflow-hidden">
                   <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full bg-navy-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 rounded-full bg-navy-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 rounded-full bg-navy-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div className="w-8 h-8 rounded-lg bg-navy-50 flex items-center justify-center flex-shrink-0 dr-glow">
+                      <Loader size={15} className="text-navy-600 animate-spin" />
                     </div>
-                    <p className="text-xs text-navy-500">
+                    <p className="text-xs text-navy-500 leading-relaxed">
                       در حال تطبیق {r.referenceNames.length} قرارداد مرجع با «{r.draftName}» — این
                       فرآیند ممکن است چند دقیقه طول بکشد
                     </p>
                   </div>
+                  <div className="h-1.5 rounded-full dr-shimmer mt-3" />
                 </div>
               ) : r.status === 'done' && r.docxUrl ? (
                 <div className="max-w-md w-full">
                   <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-l from-sky-600 to-navy-700 px-4 py-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
                         <Layers size={18} className="text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -494,35 +600,38 @@ export default function DraftReview() {
                     </div>
                     <div className="px-4 py-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-xs text-navy-500">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                        </span>
                         <Sparkles size={13} className="text-amber-500" />
                         <span>گزارش آماده دانلود است</span>
                       </div>
                       <a
                         href={r.docxUrl}
                         download={`${r.docxFilename}.docx`}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold rounded-xl transition-colors flex-shrink-0 shadow-sm"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-navy-700 hover:bg-navy-800 active:scale-95 text-white text-xs font-semibold rounded-xl transition-all flex-shrink-0 shadow-sm"
                       >
                         <Download size={13} />
                         دانلود
                       </a>
                     </div>
                   </div>
-                  <p className="text-xs text-navy-300 mt-1">{r.timestamp}</p>
-                </div>
-              ) : r.status === 'done' && r.message ? (
-                <div className="max-w-md w-full">
-                  <div className="bg-sky-50 border border-sky-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-start gap-2.5">
-                    <FileCheck2 size={16} className="text-sky-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm leading-relaxed text-navy-700">{r.message}</p>
-                  </div>
-                  <p className="text-xs text-navy-300 mt-1">{r.timestamp}</p>
+                  <p className="flex items-center gap-1 text-xs text-navy-300 mt-1.5">
+                    <Clock size={11} />
+                    {r.timestamp}
+                  </p>
                 </div>
               ) : (
                 <div className="max-w-md w-full">
-                  <div className="rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm bg-red-50 border border-red-200 text-red-700">
+                  <div className="rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5">
+                    <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
                     <p className="text-sm leading-relaxed">{r.errorMessage}</p>
                   </div>
-                  <p className="text-xs text-navy-300 mt-1">{r.timestamp}</p>
+                  <p className="flex items-center gap-1 text-xs text-navy-300 mt-1.5">
+                    <Clock size={11} />
+                    {r.timestamp}
+                  </p>
                 </div>
               )}
             </div>
@@ -536,7 +645,7 @@ export default function DraftReview() {
           onClick={() => setShowExitConfirm(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full"
+            className="bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full dr-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-navy-900 mb-2 text-center">خروج از بخش پیش‌نویس</h3>
@@ -546,13 +655,13 @@ export default function DraftReview() {
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowExitConfirm(false); navigate('/'); }}
-                className="flex-1 py-2.5 bg-navy-700 hover:bg-navy-800 text-white rounded-xl text-sm font-semibold transition-colors"
+                className="flex-1 py-2.5 bg-navy-700 hover:bg-navy-800 active:scale-95 text-white rounded-xl text-sm font-semibold transition-all"
               >
                 بله، خروج
               </button>
               <button
                 onClick={() => setShowExitConfirm(false)}
-                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-navy-700 rounded-xl text-sm font-semibold transition-colors"
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-navy-700 rounded-xl text-sm font-semibold transition-all"
               >
                 ماندن
               </button>
