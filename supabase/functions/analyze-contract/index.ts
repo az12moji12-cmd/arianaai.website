@@ -886,7 +886,7 @@ function buildCoverPage(report: ReportData): (Paragraph | Table)[] {
       alignment: AlignmentType.CENTER,
       bidirectional: true,
       spacing: { after: 1000 },
-      children: [new TextRun({ text: fixRtlPunctuation(report.reportTitle), font: HEADING_FONT, size: 28, bold: true, color: C_PRIMARY_MD })],
+      children: [new TextRun({ text: fixRtlPunctuation(report.reportTitle), font: HEADING_FONT, size: 28, bold: true, color: C_PRIMARY_MD, rightToLeft: true })],
     }),
 
     // جدول اطلاعات سند
@@ -955,7 +955,7 @@ function buildHeader(report: ReportData): Header {
         bidirectional: true,
         border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C_PRIMARY_MD, space: 4 } },
         children: [
-          new TextRun({ text: `${COMPANY_NAME} — ${shortTitle}`, font: BODY_FONT, size: 16, color: C_TEXT_LIGHT }),
+          new TextRun({ text: `${COMPANY_NAME} — ${shortTitle}`, font: BODY_FONT, size: 16, color: C_TEXT_LIGHT, rightToLeft: true }),
         ],
       }),
     ],
