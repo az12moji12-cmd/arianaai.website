@@ -1048,7 +1048,7 @@ export default function Home() {
             <div className="flex items-center gap-2 text-blue-200/35 text-xs">
               <Brain size={13} className="text-sky-500/50" />
               <span>
-                طراحی و توسعه توسط <span className="text-sky-400/70 font-semibold">مجتبی آگاه زمان</span>
+                طراحی و توسعه توسط <span className="text-sky-400/70 font-semibold">دپارتمان حقوقی شرکت تونل سد آریانا</span>
               </span>
             </div>
           </div>
