@@ -519,7 +519,7 @@ function buildList(listEl: any, ordered: boolean, level: number): Paragraph[] {
     result.push(
       new Paragraph({
         numbering: { reference: ordered ? "ordered-list" : "bullet-list", level: Math.min(level, 1) },
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.START,
         bidirectional: true,
         children: runs,
       }),
@@ -596,7 +596,7 @@ function buildTable(tableEl: any): Table {
         margins: { top: 110, bottom: 110, left: 150, right: 150 },
         children: [
           new Paragraph({
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.START,
             bidirectional: true,
             spacing: { line: 300 },
             children: runs,
@@ -615,7 +615,7 @@ function buildTable(tableEl: any): Table {
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({ text: "بدون داده", font: BODY_FONT, size: BODY_SIZE, color: C_TEXT_LIGHT })],
-              alignment: AlignmentType.RIGHT,
+              alignment: AlignmentType.START,
               bidirectional: true,
             })],
           }),
@@ -650,7 +650,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
     if (!text) return [];
     return [
       new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.START,
         bidirectional: true,
         spacing: { line: 340, after: 140 },
         children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT, rightToLeft: true })],
@@ -667,18 +667,18 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       return [
         new Paragraph({
           heading: HeadingLevel.HEADING_1,
-          alignment: AlignmentType.RIGHT,
+          alignment: AlignmentType.START,
           bidirectional: true,
-          children: textRunsFromInline(node, false, false, C_PRIMARY),
+          children: textRunsFromInline(node, true, false, C_PRIMARY),
         }),
       ];
     case "h2":
       return [
         new Paragraph({
           heading: HeadingLevel.HEADING_2,
-          alignment: AlignmentType.RIGHT,
+          alignment: AlignmentType.START,
           bidirectional: true,
-          children: textRunsFromInline(node, false, false, C_PRIMARY_MD),
+          children: textRunsFromInline(node, true, false, C_PRIMARY_MD),
         }),
       ];
     case "h3":
@@ -686,9 +686,9 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       return [
         new Paragraph({
           heading: HeadingLevel.HEADING_3,
-          alignment: AlignmentType.RIGHT,
+          alignment: AlignmentType.START,
           bidirectional: true,
-          children: textRunsFromInline(node, false, false, C_PRIMARY_MD),
+          children: textRunsFromInline(node, true, false, C_PRIMARY_MD),
         }),
       ];
     case "p": {
@@ -696,7 +696,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       if (runs.length === 0) return [];
       return [
         new Paragraph({
-          alignment: AlignmentType.RIGHT,
+          alignment: AlignmentType.START,
           bidirectional: true,
           spacing: { line: 340, after: 180 },
           children: runs,
@@ -738,7 +738,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       const runs = textRunsFromInline(node, false, false, C_TEXT);
       if (runs.length === 0) return [];
       return [new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.START,
         bidirectional: true,
         spacing: { line: 340, after: 140 },
         children: runs,
@@ -753,7 +753,7 @@ function htmlToDocxElements(html: string): (Paragraph | Table)[] {
   if (!root) {
     return [
       new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.START,
         bidirectional: true,
         children: [new TextRun({ text: "خطا در پردازش محتوای گزارش دریافتی از مدل.", font: BODY_FONT, size: BODY_SIZE })],
       }),
@@ -769,7 +769,7 @@ function htmlToDocxElements(html: string): (Paragraph | Table)[] {
   if (elements.length === 0) {
     elements.push(
       new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.START,
         bidirectional: true,
         children: [new TextRun({ text: "محتوایی از مدل هوش مصنوعی دریافت نشد.", font: BODY_FONT, size: BODY_SIZE })],
       }),
@@ -802,7 +802,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
           margins: { top: 120, bottom: 120, left: 180, right: 180 },
           children: [
             new Paragraph({
-              alignment: AlignmentType.RIGHT,
+              alignment: AlignmentType.START,
               bidirectional: true,
               children: [new TextRun({ text: label, font: BODY_FONT, size: 22, bold: true, color: C_PRIMARY })],
             }),
@@ -818,7 +818,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
           margins: { top: 120, bottom: 120, left: 180, right: 180 },
           children: [
             new Paragraph({
-              alignment: AlignmentType.RIGHT,
+              alignment: AlignmentType.START,
               bidirectional: true,
               children: [new TextRun({ text: fixRtlPunctuation(value), font: BODY_FONT, size: 22, color: C_TEXT })],
             }),
@@ -921,12 +921,12 @@ function buildTocIntro(): Array<Paragraph | TableOfContents> {
   return [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.RIGHT,
+      alignment: AlignmentType.START,
       bidirectional: true,
       children: [new TextRun({ text: "فهرست مطالب", font: HEADING_FONT, size: HEADING1_SIZE, bold: true, color: C_PRIMARY })],
     }),
     new Paragraph({
-      alignment: AlignmentType.RIGHT,
+      alignment: AlignmentType.START,
       bidirectional: true,
       spacing: { after: 300 },
       children: [
@@ -951,7 +951,7 @@ function buildHeader(report: ReportData): Header {
   return new Header({
     children: [
       new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.START,
         bidirectional: true,
         border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C_PRIMARY_MD, space: 4 } },
         children: [
@@ -1048,7 +1048,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
       default: {
         document: {
           run: { font: BODY_FONT, size: BODY_SIZE, color: C_TEXT },
-          paragraph: { alignment: AlignmentType.RIGHT, bidirectional: true, spacing: { line: 360, after: 180 } },
+          paragraph: { alignment: AlignmentType.START, bidirectional: true, spacing: { line: 360, after: 180 } },
         },
       },
       paragraphStyles: [
@@ -1060,7 +1060,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
           quickFormat: true,
           run: { font: HEADING_FONT, size: HEADING1_SIZE, bold: true, color: C_PRIMARY },
           paragraph: {
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.START,
             bidirectional: true,
             spacing: { before: 520, after: 260 },
             outlineLevel: 0,
@@ -1075,7 +1075,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
           quickFormat: true,
           run: { font: HEADING_FONT, size: HEADING2_SIZE, bold: true, color: C_PRIMARY_MD },
           paragraph: {
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.START,
             bidirectional: true,
             spacing: { before: 360, after: 180 },
             outlineLevel: 1,
@@ -1089,7 +1089,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
           quickFormat: true,
           run: { font: HEADING_FONT, size: HEADING3_SIZE, bold: true, color: C_PRIMARY_MD },
           paragraph: {
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.START,
             bidirectional: true,
             spacing: { before: 280, after: 140 },
             outlineLevel: 2,
