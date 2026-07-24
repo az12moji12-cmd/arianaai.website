@@ -379,7 +379,7 @@ export default function ContractAnalysis() {
                 <Scale size={16} className="text-white" />
               </div>
               <div>
-                <h1 className="text-base font-bold text-navy-900 leading-tight">تحلیلگر تیدا</h1>
+                <h1 className="text-base font-bold text-navy-900 leading-tight">تحلیلگر آریانا</h1>
                 <p className="text-xs text-navy-400">دستیار حقوقی آریانا</p>
               </div>
             </div>
@@ -408,7 +408,7 @@ export default function ContractAnalysis() {
               <div className="w-20 h-20 bg-gradient-to-br from-navy-700 to-navy-500 rounded-3xl flex items-center justify-center mb-5 shadow-lg">
                 <Scale size={36} className="text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-navy-900 mb-2">تحلیلگر تیدا</h2>
+              <h2 className="text-2xl font-bold text-navy-900 mb-2">تحلیلگر آریانا</h2>
               <p className="text-navy-400 max-w-sm text-sm leading-relaxed">
                 فایل سند حقوقی را آپلود کنید و نوع تحلیل مورد نظر را انتخاب کنید.
               </p>
