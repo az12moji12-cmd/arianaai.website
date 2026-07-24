@@ -519,7 +519,7 @@ function buildList(listEl: any, ordered: boolean, level: number): Paragraph[] {
     result.push(
       new Paragraph({
         numbering: { reference: ordered ? "ordered-list" : "bullet-list", level: Math.min(level, 1) },
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.JUSTIFIED,
         bidirectional: true,
         children: runs,
       }),
@@ -596,7 +596,7 @@ function buildTable(tableEl: any): Table {
         margins: { top: 110, bottom: 110, left: 150, right: 150 },
         children: [
           new Paragraph({
-            alignment: AlignmentType.RIGHT,
+            alignment: isHeaderRow ? AlignmentType.RIGHT : AlignmentType.JUSTIFIED,
             bidirectional: true,
             spacing: { line: 300 },
             children: runs,
@@ -650,7 +650,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
     if (!text) return [];
     return [
       new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.JUSTIFIED,
         bidirectional: true,
         spacing: { line: 340, after: 140 },
         children: [new TextRun({ text, font: BODY_FONT, size: BODY_SIZE, color: C_TEXT, rightToLeft: true })],
@@ -696,7 +696,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       if (runs.length === 0) return [];
       return [
         new Paragraph({
-          alignment: AlignmentType.RIGHT,
+          alignment: AlignmentType.JUSTIFIED,
           bidirectional: true,
           spacing: { line: 340, after: 180 },
           children: runs,
@@ -738,7 +738,7 @@ function convertBlockNode(node: any): (Paragraph | Table)[] {
       const runs = textRunsFromInline(node, false, false, C_TEXT);
       if (runs.length === 0) return [];
       return [new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.JUSTIFIED,
         bidirectional: true,
         spacing: { line: 340, after: 140 },
         children: runs,
@@ -1048,7 +1048,7 @@ async function generateDocxReport(report: ReportData, bodyElements: (Paragraph |
       default: {
         document: {
           run: { font: BODY_FONT, size: BODY_SIZE, color: C_TEXT },
-          paragraph: { alignment: AlignmentType.RIGHT, bidirectional: true, spacing: { line: 360, after: 180 } },
+          paragraph: { alignment: AlignmentType.JUSTIFIED, bidirectional: true, spacing: { line: 360, after: 180 } },
         },
       },
       paragraphStyles: [
