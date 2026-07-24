@@ -812,7 +812,7 @@ export default function Home() {
           </div>
           <div className="flex justify-center mt-6">
             <div className="flex flex-col items-center gap-1 text-sky-200/50">
-              <span className="text-[10px] nq-tech">اسکرول برای مشاهده نقشه‌ها</span>
+              <span className="text-[10px] nq-tech">اسکرول کنید</span>
               <div className="w-5 h-8 rounded-full border border-sky-300/30 flex items-start justify-center p-1">
                 <div className="w-1 h-1.5 rounded-full bg-sky-300/70 animate-bounce" />
               </div>
@@ -1043,7 +1043,7 @@ export default function Home() {
           <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-blue-200/40 text-xs">
               <Scale size={13} />
-              <span>تمامی حقوق برای شرکت تونل سد آریانا محفوظ است — ۱۴۰۴</span>
+              <span>تمامی حقوق برای شرکت تونل سد آریانا محفوظ است — 1405</span>
             </div>
             <div className="flex items-center gap-2 text-blue-200/35 text-xs">
               <Brain size={13} className="text-sky-500/50" />
