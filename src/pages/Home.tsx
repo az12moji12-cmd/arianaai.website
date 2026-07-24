@@ -1012,8 +1012,8 @@ export default function Home() {
               <h4 className="font-bold text-white mb-5 text-sm">دسترسی سریع</h4>
               <ul className="space-y-3">
                 {[
-                  { label: 'تحلیل قرارداد فارسی', href: '/fa-analysis' },
-                  { label: 'تحریر قرارداد', href: '/drafting' },
+                  { label: 'تحلیلگر آریانا  ', href: '/fa-analysis' },
+                  { label: 'پیش نویس ', href: '/drafting' },
                 ].map((link) => (
                   <li key={link.label}>
                     <button
