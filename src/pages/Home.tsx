@@ -30,7 +30,7 @@ const FEATURES = [
   {
     id: 'fa-analysis',
     icon: FileText,
-    title: 'تحلیلگر تیدا',
+    title: 'تحلیلگر آریانا',
     description:
       'بارگذاری فایل و دریافت تحلیل حقوقی کامل شامل استخراج اطلاعات، بررسی ریسک‌ها و پیشنهاد اصلاحیه بر اساس قوانین حاکم.',
     tags: ['تحلیل ریسک', 'بررسی بندها', 'توصیه حقوقی'],
@@ -590,7 +590,7 @@ export default function Home() {
                 className="btn-primary text-white text-sm font-semibold px-5 py-2 rounded-xl flex items-center gap-2"
               >
                 <Zap size={15} />
-                ورود به سامانه
+                ورود به تحلیلگر
               </a>
             </div>
 
@@ -636,7 +636,7 @@ export default function Home() {
                 className="btn-primary text-white text-sm font-semibold px-5 py-3 rounded-xl flex items-center justify-center gap-2 w-full"
               >
                 <Zap size={15} />
-                ورود به سامانه
+                ورود به تحلیلگر
               </a>
             </div>
           </div>
@@ -709,7 +709,7 @@ export default function Home() {
               className="btn-primary text-white font-semibold px-8 py-4 rounded-2xl flex items-center gap-3 text-base w-full sm:w-auto justify-center"
             >
               <Zap size={20} />
-              ورود به سامانه
+              ورود به تحلیلگر
               <ArrowLeft size={18} />
             </button>
             <a
