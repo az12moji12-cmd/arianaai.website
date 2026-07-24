@@ -626,6 +626,9 @@ function buildTable(tableEl: any): Table {
 
   return new Table({
     rows: tableRows,
+    // چیدمان راست‌به‌چپ ستون‌ها: اولین ستون در سمت راست قرار می‌گیرد
+    // (مطابق نگارش فارسی). بدون این تنظیم، ستون‌ها از چپ به راست می‌آیند.
+    visuallyRightToLeft: true,
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
       top:              { style: BorderStyle.SINGLE, size: 6, color: C_PRIMARY },
@@ -827,6 +830,8 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
 
   return new Table({
     rows: tableRows,
+    // چیدمان راست‌به‌چپ ستون‌ها: ستون برچسب در سمت راست قرار می‌گیرد.
+    visuallyRightToLeft: true,
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
       top:              { style: BorderStyle.SINGLE, size: 6, color: C_PRIMARY },
@@ -989,14 +994,14 @@ const numberingConfig = {
           format: LevelFormat.BULLET,
           text: "\u2022",
           alignment: AlignmentType.START,
-          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+          style: { paragraph: { bidirectional: true, indent: { right: 720, hanging: 360 } } },
         },
         {
           level: 1,
           format: LevelFormat.BULLET,
           text: "\u25E6",
           alignment: AlignmentType.START,
-          style: { paragraph: { indent: { left: 1080, hanging: 360 } } },
+          style: { paragraph: { bidirectional: true, indent: { right: 1080, hanging: 360 } } },
         },
       ],
     },
@@ -1008,14 +1013,14 @@ const numberingConfig = {
           format: LevelFormat.DECIMAL,
           text: "%1.",
           alignment: AlignmentType.START,
-          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+          style: { paragraph: { bidirectional: true, indent: { right: 720, hanging: 360 } } },
         },
         {
           level: 1,
           format: LevelFormat.LOWER_LETTER,
           text: "%2.",
           alignment: AlignmentType.START,
-          style: { paragraph: { indent: { left: 1080, hanging: 360 } } },
+          style: { paragraph: { bidirectional: true, indent: { right: 1080, hanging: 360 } } },
         },
       ],
     },
