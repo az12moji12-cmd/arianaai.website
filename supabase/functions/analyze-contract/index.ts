@@ -804,7 +804,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
             new Paragraph({
               alignment: AlignmentType.START,
               bidirectional: true,
-              children: [new TextRun({ text: label, font: BODY_FONT, size: 22, bold: true, color: C_PRIMARY })],
+              children: [new TextRun({ text: fixRtlPunctuation(label), font: BODY_FONT, size: 22, bold: true, color: C_PRIMARY, rightToLeft: true })],
             }),
           ],
         }),
@@ -820,7 +820,7 @@ function buildCoverInfoTable(report: ReportData, dateStr: string): Table {
             new Paragraph({
               alignment: AlignmentType.START,
               bidirectional: true,
-              children: [new TextRun({ text: fixRtlPunctuation(value), font: BODY_FONT, size: 22, color: C_TEXT })],
+              children: [new TextRun({ text: fixRtlPunctuation(value), font: BODY_FONT, size: 22, color: C_TEXT, rightToLeft: true })],
             }),
           ],
         }),
